@@ -1057,14 +1057,14 @@ function drawCustomers() {
     .map((c) => {
       const ticket = Number(c.orders) ? Number(c.spent) / Number(c.orders) : 0;
       return `<tr>
-        <td><b>${esc(c.name || 'Cliente')}</b>${c.active === false ? ' <span class="badge cancelado">inactivo</span>' : ''}
+        <td data-label="Cliente"><b>${esc(c.name || 'Cliente')}</b>${c.active === false ? ' <span class="badge cancelado">inactivo</span>' : ''}
             <div class="small muted">${esc(c.city || '')}</div></td>
-        <td class="small">${esc(c.email || '—')}<div class="muted">${esc(c.phone || '')}</div></td>
-        <td class="num">${c.orders}</td>
-        <td class="num">${money(c.spent)}</td>
-        <td class="num">${money(ticket)}</td>
-        <td class="small">${c.last_at ? fmtDate(c.last_at) : '—'}</td>
-        <td><button class="btn sm" data-cust="${c.user_id}">Ver ficha</button></td>
+        <td data-label="Contacto" class="small">${esc(c.email || '—')}<div class="muted">${esc(c.phone || '')}</div></td>
+        <td data-label="Pedidos" class="num">${c.orders}</td>
+        <td data-label="Gastado" class="num">${money(c.spent)}</td>
+        <td data-label="Ticket promedio" class="num">${money(ticket)}</td>
+        <td data-label="Última compra" class="small">${c.last_at ? fmtDate(c.last_at) : '—'}</td>
+        <td data-label=""><button class="btn sm" data-cust="${c.user_id}">Ver ficha</button></td>
       </tr>`;
     })
     .join('');
