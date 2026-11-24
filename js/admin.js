@@ -1,5 +1,5 @@
 /* admin.js — shell del panel: pedidos, preparación e inventario */
-import { sb, money, esc, toast, fmtDate, errMessage, STATUS_LABEL, getUser } from './core.js?v=6bf78bd8';
+import { sb, money, esc, toast, fmtDate, errMessage, STATUS_LABEL, getUser } from './core.js?v=061ee464';
 import { initPos, scanOnce } from './pos.js?v=90cba46c';
 import { Scanner } from './scanner.js?v=90ef2e67';
 
@@ -63,9 +63,15 @@ async function boot() {
   const ver = own ? new URL(own.src).searchParams.get('v') : 'dev';
   $('#sideWho').textContent += ` · v${ver}`;
   window.__tsReady = true;
+
+  // La sección de usuarios es solo para el administrador.
+  const isAdmin = profile.role === 'admin';
+  $('#navUsers').classList.toggle('hidden', !isAdmin);
+
   await refreshAll();
   initPos({ sb, money, esc, toast, errMessage });
-  setView(viewFromHash()); // respeta admin.html#inventario
+  const target = viewFromHash();
+  setView(target === 'users' && !isAdmin ? 'orders' : target);
 }
 
 function showLogin() {
@@ -106,20 +112,22 @@ const TITLES = {
   fulfillment: ['Preparación', 'Lo que hay que embalar y entregar, por etapa'],
   pos: ['Punto de venta', 'Venta presencial: descuenta inventario al cobrar'],
   sales: ['Ventas', 'Ingresos, ticket promedio, margen y productos más vendidos'],
+  users: ['Usuarios', 'Quién entra al panel y con qué rol'],
   inventory: ['Inventario', 'Stock, precios y movimientos'],
 };
 
-// enlaces directos: admin.html#inventario, #pos, #preparacion, #pedidos, #ventas
+// enlaces directos: admin.html#inventario, #pos, #preparacion, #pedidos, #ventas, #usuarios
 const HASH_TO_VIEW = {
   pedidos: 'orders', orders: 'orders',
   preparacion: 'fulfillment', fulfillment: 'fulfillment',
   pos: 'pos',
   ventas: 'sales', sales: 'sales',
+  usuarios: 'users', users: 'users',
   inventario: 'inventory', inventory: 'inventory',
 };
 const VIEW_TO_HASH = {
   orders: 'pedidos', fulfillment: 'preparacion', pos: 'pos',
-  sales: 'ventas', inventory: 'inventario',
+  sales: 'ventas', users: 'usuarios', inventory: 'inventario',
 };
 
 function viewFromHash() {
@@ -130,7 +138,7 @@ function viewFromHash() {
 function setView(view, { syncHash = true } = {}) {
   state.view = view;
   $$('#sideNav button').forEach((b) => b.classList.toggle('active', b.dataset.view === view));
-  ['orders', 'fulfillment', 'pos', 'sales', 'inventory'].forEach((v) => {
+  ['orders', 'fulfillment', 'pos', 'sales', 'users', 'inventory'].forEach((v) => {
     $(`#view-${v}`).classList.toggle('hidden', v !== view);
   });
   $('#viewTitle').textContent = TITLES[view][0];
@@ -143,6 +151,7 @@ function setView(view, { syncHash = true } = {}) {
   if (view === 'inventory') renderInventory();
   if (view === 'pos') renderPos();
   if (view === 'sales') renderSales();
+  if (view === 'users') renderUsers();
 }
 
 window.addEventListener('hashchange', () => setView(viewFromHash(), { syncHash: false }));
@@ -506,6 +515,209 @@ async function openInventory(productId) {
     if (e.target.id === 'dClose2') closeDrawer();
   }, { once: true });
 }
+
+/* ---------------- usuarios y roles ---------------- */
+const ROLE_LABEL = { admin: 'Administrador', operador: 'Operador', cliente: 'Cliente' };
+
+function randomPassword(len = 12) {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+  const buf = new Uint32Array(len);
+  crypto.getRandomValues(buf);
+  return Array.from(buf, (n) => alphabet[n % alphabet.length]).join('');
+}
+
+function showCredentials({ email, password, role, name }) {
+  const host = $('#userCreds');
+  if (!host) return;
+  host.hidden = false;
+  host.innerHTML = `
+    <h3>Credenciales generadas</h3>
+    <p class="small muted">Guárdalas ahora: la contraseña no se puede volver a mostrar.</p>
+    <div class="mono" style="font-size:.95rem;line-height:1.9">
+      <div>Correo: <b>${esc(email)}</b></div>
+      <div>Contraseña: <b>${esc(password)}</b></div>
+      <div>Rol: <b>${esc(ROLE_LABEL[role] || role)}</b>${name ? ` · ${esc(name)}` : ''}</div>
+    </div>
+    <div class="row" style="margin-top:.8rem">
+      <button class="btn primary sm" id="copyCreds">Copiar todo</button>
+      <button class="btn ghost sm" id="hideCreds">Ocultar</button>
+    </div>`;
+  $('#copyCreds').onclick = async () => {
+    const text = `${name || ''}\nCorreo: ${email}\nContraseña: ${password}\nRol: ${ROLE_LABEL[role] || role}\nPanel: https://compratelosv.github.io/techstore/admin.html`;
+    try {
+      await navigator.clipboard.writeText(text.trim());
+      toast('Credenciales copiadas');
+    } catch {
+      toast('No se pudo copiar: selecciónalas a mano', 'err');
+    }
+  };
+  $('#hideCreds').onclick = () => { host.hidden = true; };
+  host.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+async function renderUsers() {
+  if (state.profile?.role !== 'admin') {
+    toast('Solo el administrador puede ver los usuarios', 'err');
+    return setView('orders');
+  }
+  const tbody = $('#usersTable').querySelector('tbody');
+  tbody.innerHTML = '<tr><td colspan="6" class="small muted">Cargando…</td></tr>';
+
+  const { data, error } = await sb.rpc('ts_admin_list_users');
+  if (error) {
+    tbody.innerHTML = '';
+    return toast(errMessage(error), 'err');
+  }
+
+  tbody.innerHTML = (data || [])
+    .map((u) => {
+      const self = u.id === state.profile.id;
+      return `<tr>
+        <td>${esc(u.full_name || '—')}${self ? ' <span class="small muted">(tú)</span>' : ''}</td>
+        <td class="small mono">${esc(u.email || '')}</td>
+        <td>
+          <select class="btn sm" data-role="${u.id}" ${self ? 'disabled' : ''}>
+            ${['admin', 'operador', 'cliente']
+              .map((r) => `<option value="${r}" ${u.role === r ? 'selected' : ''}>${ROLE_LABEL[r]}</option>`)
+              .join('')}
+          </select>
+        </td>
+        <td>${u.active
+          ? '<span class="badge entregado">Activo</span>'
+          : '<span class="badge cancelado">Inactivo</span>'}</td>
+        <td class="small muted">${u.last_sign_in ? fmtDate(u.last_sign_in) : 'nunca'}</td>
+        <td class="row" style="gap:.35rem">
+          <button class="btn sm" data-reset="${u.id}" data-email="${esc(u.email || '')}">Contraseña</button>
+          ${self ? '' : `<button class="btn sm ${u.active ? 'danger' : ''}" data-toggle="${u.id}" data-active="${u.active}">
+              ${u.active ? 'Desactivar' : 'Activar'}
+            </button>`}
+        </td>
+      </tr>`;
+    })
+    .join('');
+}
+
+$('#usersTable').addEventListener('change', async (e) => {
+  const sel = e.target.closest('[data-role]');
+  if (!sel) return;
+  const { error } = await sb.rpc('ts_admin_set_user_role', {
+    p_user_id: sel.dataset.role,
+    p_role: sel.value,
+  });
+  if (error) {
+    toast(errMessage(error), 'err');
+    return renderUsers();
+  }
+  toast('Rol actualizado');
+  await renderUsers();
+});
+
+$('#usersTable').addEventListener('click', async (e) => {
+  const reset = e.target.closest('[data-reset]');
+  const toggle = e.target.closest('[data-toggle]');
+
+  if (reset) {
+    const password = randomPassword();
+    const { error } = await sb.rpc('ts_admin_reset_password', {
+      p_user_id: reset.dataset.reset,
+      p_password: password,
+    });
+    if (error) return toast(errMessage(error), 'err');
+    toast('Contraseña restablecida');
+    showCredentials({ email: reset.dataset.email, password, role: 'operador' });
+    await renderUsers();
+  }
+
+  if (toggle) {
+    const activar = toggle.dataset.active === 'false';
+    if (!activar && !confirm('¿Desactivar esta cuenta? No podrá iniciar sesión hasta que la reactives.')) return;
+    const { error } = await sb.rpc('ts_admin_set_user_active', {
+      p_user_id: toggle.dataset.toggle,
+      p_active: activar,
+    });
+    if (error) return toast(errMessage(error), 'err');
+    toast(activar ? 'Cuenta activada' : 'Cuenta desactivada');
+    await renderUsers();
+  }
+});
+
+$('#btnNewUser').addEventListener('click', () => {
+  const password = randomPassword();
+  openDrawer({
+    title: 'Nuevo usuario',
+    subtitle: 'Alta de miembro del equipo',
+    body: `
+      <div class="panel">
+        <div class="field">
+          <label for="uName">Nombre completo *</label>
+          <input id="uName" placeholder="Ana Martínez">
+        </div>
+        <div class="field">
+          <label for="uEmail">Correo *</label>
+          <input id="uEmail" type="email" placeholder="ana@tunegocio.com" autocomplete="off">
+        </div>
+        <div class="field">
+          <label for="uPhone">Teléfono</label>
+          <input id="uPhone" inputmode="tel" placeholder="7000 0000">
+        </div>
+        <div class="field">
+          <label for="uRole">Rol *</label>
+          <select id="uRole">
+            <option value="operador" selected>Operador — ventas y logística</option>
+            <option value="admin">Administrador — acceso total</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="uPass">Contraseña temporal *</label>
+          <div class="row">
+            <input id="uPass" value="${password}">
+            <button class="btn sm" id="uGenPass" type="button" title="Generar otra">⟳</button>
+          </div>
+          <span class="small muted">Mínimo 8 caracteres. La persona debe cambiarla después.</span>
+        </div>
+      </div>`,
+    foot: `<button class="btn primary" id="uSave">Crear usuario</button>
+           <button class="btn ghost" id="uCancel">Cancelar</button>`,
+  });
+
+  $('#uGenPass').onclick = () => { $('#uPass').value = randomPassword(); };
+  $('#uCancel').onclick = closeDrawer;
+
+  $('#uSave').onclick = async (e) => {
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    btn.textContent = 'Creando…';
+    const payload = {
+      p_email: $('#uEmail').value.trim(),
+      p_password: $('#uPass').value,
+      p_full_name: $('#uName').value.trim(),
+      p_role: $('#uRole').value,
+      p_phone: $('#uPhone').value.trim() || null,
+    };
+    if (!payload.p_email || !payload.p_full_name) {
+      toast('Nombre y correo son obligatorios', 'err');
+      btn.disabled = false;
+      btn.textContent = 'Crear usuario';
+      return;
+    }
+    const { error } = await sb.rpc('ts_admin_create_user', payload);
+    if (error) {
+      toast(errMessage(error), 'err');
+      btn.disabled = false;
+      btn.textContent = 'Crear usuario';
+      return;
+    }
+    closeDrawer();
+    toast('Usuario creado');
+    showCredentials({
+      email: payload.p_email,
+      password: payload.p_password,
+      role: payload.p_role,
+      name: payload.p_full_name,
+    });
+    await renderUsers();
+  };
+});
 
 /* ---------------- ventas ---------------- */
 function pct(cur, prev) {

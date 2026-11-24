@@ -107,5 +107,8 @@ export function errMessage(err) {
   if (/JWT|token/i.test(m)) return 'Tu sesión expiró. Vuelve a ingresar.';
   if (/row-level security/i.test(m)) return 'No tienes permiso para esta acción.';
   if (/duplicate key/i.test(m)) return 'Ese registro ya existe.';
+  if (/User is banned|banned/i.test(m)) return 'Esta cuenta está desactivada. Habla con el administrador.';
+  if (/Invalid login credentials/i.test(m)) return 'Correo o contraseña incorrectos.';
+  if (/Database error querying schema/i.test(m)) return 'No se pudo validar la cuenta. Intenta de nuevo en un momento.';
   return m;
 }

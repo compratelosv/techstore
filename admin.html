@@ -37,6 +37,7 @@
       <button data-view="fulfillment">🏷️ Preparación</button>
       <button data-view="pos">🛒 Punto de venta</button>
       <button data-view="sales">📈 Ventas</button>
+      <button data-view="users" id="navUsers">👥 Usuarios</button>
       <button data-view="inventory">📊 Inventario</button>
     </nav>
     <div class="side-foot">
@@ -193,6 +194,34 @@
       </div>
     </section>
 
+    <!-- USUARIOS -->
+    <section id="view-users" class="hidden">
+      <div class="row wrap" style="justify-content:space-between;margin-bottom:1rem">
+        <p class="small muted" style="margin:0">
+          Quién puede entrar al panel y con qué permisos. Solo el administrador ve esta sección.
+        </p>
+        <button class="btn primary sm" id="btnNewUser">＋ Nuevo usuario</button>
+      </div>
+
+      <div class="panel">
+        <div style="overflow-x:auto">
+          <table class="table" id="usersTable">
+            <thead>
+              <tr><th>Nombre</th><th>Correo</th><th>Rol</th><th>Estado</th><th>Último acceso</th><th>Acciones</th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel" id="userCreds" hidden></div>
+
+      <p class="small muted" style="margin-top:.8rem">
+        Roles: <b>admin</b> ve todo y administra usuarios · <b>operador</b> usa pedidos, preparación, POS, ventas e inventario ·
+        <b>cliente</b> solo compra en la tienda.
+      </p>
+    </section>
+
     <!-- INVENTARIO -->
     <section id="view-inventory" class="hidden">
       <div class="kpis" id="invKpis"></div>
@@ -235,6 +264,6 @@
 <script src="vendor/zxing-library.min.js"></script>
 <script src="vendor/zxing-browser.min.js"></script>
 <script src="vendor/jsbarcode.min.js"></script>
-<script type="module" src="js/admin.js?v=5c99f9b8"></script>
+<script type="module" src="js/admin.js?v=fab30d3c"></script>
 </body>
 </html>
