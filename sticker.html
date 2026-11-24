@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Etiqueta de pedido · TechStore</title>
+<link rel="stylesheet" href="css/admin.css">
+<style>
+  body{background:#e5e7eb;color:#000}
+  .sheet-wrap{max-width:420px;margin:1.5rem auto;padding:0 1rem}
+  .label{
+    background:#fff;border-radius:8px;padding:14px 16px;box-shadow:0 10px 30px -12px rgba(0,0,0,.45);
+    display:grid;grid-template-columns:104px 1fr;gap:12px;align-items:start;
+  }
+  .label canvas{width:104px;height:104px;image-rendering:pixelated}
+  .label .code{font:800 20px ui-monospace,monospace;letter-spacing:-.01em;margin:0 0 2px}
+  .label .meta{font:600 12px system-ui;color:#111}
+  .label .sub{font:400 11px system-ui;color:#444;margin-top:2px}
+  .items{margin-top:10px;border-top:1px dashed #999;padding-top:8px;font:600 11px ui-monospace,monospace}
+  .items div{display:flex;justify-content:space-between;gap:8px;padding:2px 0}
+  .items .q{white-space:nowrap}
+  .foot{margin-top:8px;font:400 10px system-ui;color:#555;display:flex;justify-content:space-between}
+  .bar{display:flex;gap:.5rem;justify-content:center;margin-top:1rem}
+  @media print{
+    body{background:#fff}
+    .bar,.hint{display:none !important}
+    .sheet-wrap{margin:0;max-width:none;padding:0}
+    .label{box-shadow:none;border-radius:0;padding:0;page-break-inside:avoid}
+    @page{margin:6mm}
+  }
+</style>
+</head>
+<body>
+<div class="sheet-wrap">
+  <div id="labelHost"><p class="hint small muted" style="text-align:center;padding:2rem">Cargando etiqueta…</p></div>
+  <div class="bar">
+    <button class="btn primary" id="printBtn">Imprimir</button>
+    <a class="btn" href="admin.html">Volver al panel</a>
+  </div>
+  <p class="hint small muted" style="text-align:center;margin-top:1rem">
+    Etiqueta 100 × 70 mm aprox. Sirve para impresora normal o térmica.
+  </p>
+</div>
+
+<script src="vendor/supabase.js"></script>
+<script src="vendor/qrcode-generator.js"></script>
+<script type="module" src="js/sticker.js"></script>
+</body>
+</html>

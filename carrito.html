@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Carrito · TechStore SV</title>
+<link rel="icon" href="assets/favicon.svg">
+<link rel="stylesheet" href="css/tienda.css">
+</head>
+<body>
+<header data-header></header>
+
+<main class="wrap">
+  <div class="cart-layout">
+    <section>
+      <h1 style="margin:1.6rem 0 1rem">Tu carrito</h1>
+      <div id="cartLines"></div>
+      <p class="empty" id="cartEmpty" hidden>
+        Tu carrito está vacío.<br><a class="btn primary" href="index.html#catalogo" style="margin-top:1rem">Ver catálogo</a>
+      </p>
+    </section>
+
+    <aside class="summary" id="summary" hidden>
+      <h3>Resumen</h3>
+      <div id="summaryRows"></div>
+      <a class="btn primary block" id="goCheckout" href="checkout.html">Continuar con la compra</a>
+      <button class="btn ghost block" id="clearBtn" style="margin-top:.5rem">Vaciar carrito</button>
+    </aside>
+  </div>
+</main>
+
+<script src="vendor/supabase.js"></script>
+<script type="module" src="js/cart-page.js"></script>
+</body>
+</html>

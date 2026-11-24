@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Panel · TechStore SV</title>
+<link rel="icon" href="assets/favicon.svg">
+<link rel="stylesheet" href="css/admin.css">
+</head>
+<body>
+
+<!-- ============ LOGIN ============ -->
+<div class="login-wrap" id="loginWrap">
+  <form class="login-card" id="loginForm">
+    <div class="brandline"><span>TS</span><span>TechStore · Panel</span></div>
+    <h1>Acceso del personal</h1>
+    <p class="small muted" style="margin-bottom:1rem">Solo administradores y operadores.</p>
+    <div class="field">
+      <label for="lEmail">Correo</label>
+      <input id="lEmail" type="email" required autocomplete="username">
+    </div>
+    <div class="field">
+      <label for="lPass">Contraseña</label>
+      <input id="lPass" type="password" required autocomplete="current-password">
+    </div>
+    <button class="btn primary block" type="submit" id="loginBtn">Ingresar</button>
+    <p class="small muted" style="margin-top:.9rem"><a href="index.html">← Volver a la tienda</a></p>
+  </form>
+</div>
+
+<!-- ============ APP ============ -->
+<div class="shell hidden" id="appShell">
+  <aside class="side">
+    <div class="brandline"><span>TS</span><span>TechStore</span></div>
+    <nav class="side-nav" id="sideNav">
+      <button data-view="orders" class="active">📦 Pedidos</button>
+      <button data-view="fulfillment">🏷️ Preparación</button>
+      <button data-view="pos">🛒 Punto de venta</button>
+      <button data-view="inventory">📊 Inventario</button>
+    </nav>
+    <div class="side-foot">
+      <div id="sideWho" class="mono"></div>
+      <button id="logoutBtn">Cerrar sesión</button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <div>
+        <h1 id="viewTitle">Pedidos</h1>
+        <div class="who" id="viewSub"></div>
+      </div>
+      <div class="row">
+        <a class="btn ghost sm" href="index.html" target="_blank" rel="noopener">Ver tienda ↗</a>
+        <button class="btn sm" id="refreshBtn">Actualizar</button>
+      </div>
+    </div>
+
+    <!-- PEDIDOS -->
+    <section id="view-orders">
+      <div class="kpis" id="kpis"></div>
+      <div class="panel">
+        <div class="row wrap" style="justify-content:space-between;margin-bottom:.8rem">
+          <div class="tabs" id="statusTabs"></div>
+          <input class="field" id="orderSearch" placeholder="Buscar código, cliente…" style="max-width:260px">
+        </div>
+        <div style="overflow-x:auto">
+          <table class="table" id="ordersTable">
+            <thead>
+              <tr>
+                <th>Código</th><th>Cliente</th><th>Entrega</th><th class="num">Total</th>
+                <th>Estado</th><th>Creado</th><th></th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <p class="empty small muted" id="ordersEmpty" hidden>No hay pedidos con ese filtro.</p>
+      </div>
+    </section>
+
+    <!-- PREPARACIÓN -->
+    <section id="view-fulfillment" class="hidden">
+      <div class="kanban" id="kanban"></div>
+    </section>
+
+    <!-- POS -->
+    <section id="view-pos" class="hidden">
+      <div class="pos-grid">
+        <div class="panel">
+          <div class="field">
+            <label for="posSearch">Buscar producto</label>
+            <input id="posSearch" placeholder="Nombre, marca o SKU…">
+          </div>
+          <div class="pos-products" id="posProducts"></div>
+        </div>
+        <div class="panel">
+          <h3>Venta actual</h3>
+          <div id="posLines"></div>
+          <p class="small muted" id="posEmpty">Agrega productos para cobrar.</p>
+          <div class="pos-total"><span>Total</span><span id="posTotal">$0.00</span></div>
+          <div class="field">
+            <label for="posName">Cliente (opcional)</label>
+            <input id="posName" placeholder="Consumidor final">
+          </div>
+          <div class="field">
+            <label for="posMethod">Forma de pago</label>
+            <select id="posMethod">
+              <option value="efectivo">Efectivo</option>
+              <option value="tarjeta">Tarjeta (POS externo)</option>
+              <option value="transferencia">Transferencia</option>
+            </select>
+          </div>
+          <button class="btn primary block" id="posCharge" disabled>Cobrar y generar pedido</button>
+          <button class="btn ghost block sm" id="posClear" style="margin-top:.4rem">Vaciar</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- INVENTARIO -->
+    <section id="view-inventory" class="hidden">
+      <div class="kpis" id="invKpis"></div>
+      <div class="panel">
+        <div class="row wrap" style="justify-content:space-between;margin-bottom:.6rem">
+          <h3 style="margin:0">Productos</h3>
+          <input class="field" id="invSearch" placeholder="Buscar…" style="max-width:240px">
+        </div>
+        <div style="overflow-x:auto">
+          <table class="table" id="invTable">
+            <thead>
+              <tr><th>SKU</th><th>Producto</th><th>Marca</th><th class="num">Precio</th><th class="num">Stock</th><th>Acciones</th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- DRAWER PEDIDO -->
+<aside class="drawer" id="drawer" aria-hidden="true">
+  <div class="drawer-head">
+    <div>
+      <div class="mono" id="dCode" style="font-weight:800"></div>
+      <div class="small muted" id="dMeta"></div>
+    </div>
+    <button class="btn ghost sm" id="dClose">✕</button>
+  </div>
+  <div class="drawer-body" id="dBody"></div>
+  <div class="drawer-foot" id="dFoot"></div>
+</aside>
+
+<script src="vendor/supabase.js"></script>
+<script type="module" src="js/admin.js"></script>
+</body>
+</html>

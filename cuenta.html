@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mi cuenta · TechStore SV</title>
+<link rel="icon" href="assets/favicon.svg">
+<link rel="stylesheet" href="css/tienda.css">
+</head>
+<body>
+<header data-header></header>
+
+<main class="wrap" style="max-width:820px">
+  <!-- sin sesión -->
+  <section id="authView" hidden style="padding:2rem 0 3rem">
+    <div class="panel" style="max-width:460px;margin:0 auto">
+      <h2 id="authTitle">Ingresar</h2>
+      <form id="authForm">
+        <div class="field" id="nameField" hidden>
+          <label for="aName">Nombre completo</label>
+          <input id="aName" autocomplete="name">
+        </div>
+        <div class="field">
+          <label for="aEmail">Correo</label>
+          <input id="aEmail" type="email" required autocomplete="email">
+        </div>
+        <div class="field">
+          <label for="aPass">Contraseña</label>
+          <input id="aPass" type="password" required minlength="8" autocomplete="current-password">
+          <span class="hint">Mínimo 8 caracteres.</span>
+        </div>
+        <button class="btn primary block" id="authSubmit" type="submit">Ingresar</button>
+      </form>
+      <p class="small center muted" style="margin:.9rem 0 0">
+        <span id="switchText">¿No tienes cuenta?</span>
+        <a href="#" id="switchMode"><b>Crear cuenta</b></a>
+      </p>
+    </div>
+  </section>
+
+  <!-- con sesión -->
+  <section id="accountView" hidden style="padding:2rem 0 3rem">
+    <div class="section-head">
+      <div>
+        <h1 style="margin-bottom:.2rem">Mi cuenta</h1>
+        <p class="muted small" id="whoami"></p>
+      </div>
+      <button class="btn ghost" id="logoutBtn">Cerrar sesión</button>
+    </div>
+
+    <h2 style="font-size:1.25rem;margin-top:2rem">Mis pedidos</h2>
+    <div id="ordersList"></div>
+    <p class="empty" id="ordersEmpty" hidden>Aún no tienes pedidos. <a href="index.html#catalogo">Ver catálogo</a></p>
+
+    <h2 style="font-size:1.25rem;margin-top:2.5rem">Mis datos</h2>
+    <form class="panel" id="profileForm" style="max-width:460px">
+      <div class="field">
+        <label for="pName">Nombre</label>
+        <input id="pName" autocomplete="name">
+      </div>
+      <div class="field">
+        <label for="pPhone">Teléfono</label>
+        <input id="pPhone" inputmode="tel" autocomplete="tel">
+      </div>
+      <button class="btn primary" type="submit">Guardar datos</button>
+    </form>
+  </section>
+</main>
+
+<script src="vendor/supabase.js"></script>
+<script type="module" src="js/account.js"></script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+{
+  "name": "techstore",
+  "version": "0.1.0",
+  "description": "TechStore SV — tienda en línea, punto de venta y panel de preparación de pedidos",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node serve.mjs",
+    "images": "python tools/make_images.py"
+  },
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.119.2"
+  }
+}

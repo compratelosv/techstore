@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TechStore SV · Tecnología que sí rinde</title>
+<meta name="description" content="Laptops, smartphones, audio y accesorios con entrega en todo El Salvador.">
+<link rel="icon" href="assets/favicon.svg">
+<link rel="stylesheet" href="css/tienda.css">
+</head>
+<body>
+
+<header data-header></header>
+
+<section class="hero">
+  <div class="wrap hero-grid">
+    <div>
+      <span class="eyebrow">Envío a todo El Salvador</span>
+      <h1>Tecnología que sí rinde, sin pagar de más.</h1>
+      <p class="lead">Laptops, smartphones, audio y accesorios seleccionados. Envío por zona o retiro en tienda, y seguimiento del pedido hasta que lo tengas en tus manos.</p>
+      <div class="actions">
+        <a class="btn primary" href="#catalogo">Ver catálogo</a>
+        <a class="btn ghost" href="cuenta.html">Mis pedidos</a>
+      </div>
+      <p class="small muted" style="margin-top:1.2rem">Envío gratis desde $75 · Garantía de 6 meses · Pago seguro</p>
+    </div>
+    <div class="hero-visual"><span>24 productos<br>listos para enviar</span></div>
+  </div>
+</section>
+
+<section class="block" id="catalogo">
+  <div class="wrap">
+    <div class="section-head">
+      <div>
+        <h2>Catálogo</h2>
+        <p class="muted small" id="catalogCount">Cargando productos…</p>
+      </div>
+      <div class="search">
+        <input type="search" id="searchInput" placeholder="Buscar producto o marca…" aria-label="Buscar">
+      </div>
+    </div>
+    <div class="filters" id="filters"></div>
+    <div class="grid" id="grid"></div>
+    <p class="empty" id="emptyState" hidden>No encontramos productos con ese criterio.</p>
+  </div>
+</section>
+
+<footer class="wrap" style="padding:2.5rem 1.25rem;color:var(--ink-3);font-size:.82rem;border-top:1px solid var(--line)">
+  TechStore SV · Catálogo de demostración · Pagos simulados en entorno de pruebas.
+</footer>
+
+<script src="vendor/supabase.js"></script>
+<script type="module" src="js/storefront.js"></script>
+</body>
+</html>

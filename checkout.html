@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Finalizar compra · TechStore SV</title>
+<link rel="icon" href="assets/favicon.svg">
+<link rel="stylesheet" href="css/tienda.css">
+</head>
+<body>
+<header data-header></header>
+
+<main class="wrap">
+  <h1 style="margin:1.6rem 0 1rem">Finalizar compra</h1>
+  <div class="cart-layout">
+    <form class="panel" id="checkoutForm" novalidate>
+      <h3>1 · Datos de contacto</h3>
+      <div class="field-row">
+        <div class="field">
+          <label for="cName">Nombre completo</label>
+          <input id="cName" required autocomplete="name">
+        </div>
+        <div class="field">
+          <label for="cPhone">Teléfono</label>
+          <input id="cPhone" required inputmode="tel" autocomplete="tel" placeholder="7000 0000">
+        </div>
+      </div>
+      <div class="field">
+        <label for="cEmail">Correo</label>
+        <input id="cEmail" type="email" required autocomplete="email">
+      </div>
+
+      <h3 style="margin-top:1.5rem">2 · Entrega</h3>
+      <div class="radio-cards">
+        <label class="radio-card">
+          <input type="radio" name="fulfillment" value="envio" checked>
+          <span><b>Envío a domicilio</b><small>Se cobra según la zona</small></span>
+        </label>
+        <label class="radio-card">
+          <input type="radio" name="fulfillment" value="retiro">
+          <span><b>Retiro en tienda</b><small>Sin costo · te avisamos cuando esté listo</small></span>
+        </label>
+      </div>
+
+      <div id="shippingFields">
+        <div class="field">
+          <label for="cZone">Zona de entrega</label>
+          <select id="cZone" required></select>
+        </div>
+        <div class="field">
+          <label for="cAddress">Dirección</label>
+          <input id="cAddress" required autocomplete="street-address" placeholder="Calle, número, colonia">
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="cCity">Municipio / ciudad</label>
+            <input id="cCity" required autocomplete="address-level2">
+          </div>
+          <div class="field">
+            <label for="cDept">Departamento</label>
+            <input id="cDept" autocomplete="address-level1">
+          </div>
+        </div>
+        <div class="field">
+          <label for="cNotes">Referencias (opcional)</label>
+          <textarea id="cNotes" rows="2" placeholder="Punto de referencia, horario preferido…"></textarea>
+        </div>
+      </div>
+
+      <button class="btn primary block" id="submitBtn" type="submit" style="margin-top:1rem">
+        Confirmar pedido
+      </button>
+      <p class="small muted center" style="margin-top:.7rem">
+        Al confirmar se crea el pedido con estado <b>pendiente de pago</b>.
+      </p>
+    </form>
+
+    <aside class="summary">
+      <h3>Tu pedido</h3>
+      <div id="orderLines"></div>
+      <div id="totals"></div>
+    </aside>
+  </div>
+</main>
+
+<script src="vendor/supabase.js"></script>
+<script type="module" src="js/checkout.js"></script>
+</body>
+</html>
