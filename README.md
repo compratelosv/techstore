@@ -132,6 +132,10 @@ Todo comprobado sobre el proyecto real de Supabase y en el navegador:
 | Etiqueta imprimible | QR generado y **decodificado con ZXing como `TEC-001000`** ✅ |
 | Punto de venta | venta `TEC-001001`, canal `pos`, pagada, $223.00 ✅ |
 | Cancelación de venta cobrada | stock devuelto: AUD-303 54→55, STO-604 11→13, movimientos `cancelacion` ✅ |
+| **Producción** (`compratelosv.github.io/techstore`) | catálogo con 24 productos e imágenes ✅ · login de cliente con historial ✅ · ficha + carrito ✅ |
+| Envío con costo en producción | subtotal $45 + zona Santa Ana $5 = **$50.00**, pedido `TEC-001002` pagado ✅ |
+| Stock en producción | AUD-303 55→54 tras el cobro ✅ |
+| Panel en producción | ventas $417, 1 activo, 1 por preparar, ticket visible en el tablero ✅ |
 
 **No verificado / pendiente de decidir:**
 
@@ -143,9 +147,14 @@ Todo comprobado sobre el proyecto real de Supabase y en el navegador:
 ## Despliegue
 
 ```bash
-GIT_TERMINAL_PROMPT=0 git -c credential.helper='!gh auth git-credential' \
+GIT_TERMINAL_PROMPT=0 git \
+  -c credential.helper= \
+  -c credential.helper='!gh auth git-credential' \
   -c http.version=HTTP/1.1 push origin main
+
 gh api repos/compratelosv/techstore/pages/builds/latest --jq .status   # hasta "built"
 ```
 
-GitHub Pages sirve desde `main`. No hay service worker en esta app, así que un deploy se ve al instante (sin caché de aplicación), aunque el CDN puede tardar unos minutos.
+`-c credential.helper=` **vacío primero** es obligatorio en este equipo: hay un helper `store` global con un token viejo que devuelve 401 y hace fallar el push.
+
+GitHub Pages sirve desde `main`. Esta app no tiene service worker, así que un deploy se ve al instante (sin caché de aplicación), aunque el CDN puede tardar unos minutos.
