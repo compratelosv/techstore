@@ -12,10 +12,12 @@ Catálogo de demostración: **24 productos de tecnología inventados**.
 
 | Rol | Correo | Contraseña |
 |---|---|---|
-| Administrador | `admin@techstore.test` | `Admin1234!` |
-| Cliente | `cliente@techstore.test` | `Demo1234!` |
+| Administrador | `admin@techstore.test` | entregada aparte |
+| Agente de ventas | `agente@techstore.test` | entregada aparte |
+| Vendedor de mostrador | `vendedor@techstore.test` | entregada aparte |
+| Cliente | `cliente@techstore.test` | entregada aparte |
 
-Son cuentas de sandbox creadas directamente en la base con correo ya confirmado. **No usar en producción**: hay que cambiarlas o eliminarlas antes de abrir la tienda al público.
+Son cuentas de sandbox con correo ya confirmado. **Las contraseñas no se guardan en el repositorio** (es público): se gestionan desde el panel, en *Usuarios → Contraseña*, que genera una nueva y la muestra una sola vez. Antes de abrir la tienda al público hay que cambiar todas.
 
 ## Funcionalidad
 
@@ -37,6 +39,7 @@ Son cuentas de sandbox creadas directamente en la base con correo ya confirmado.
 - **SKU automático:** al escanear se arma como `CAT-MARCA-NNN` — abreviatura de categoría, 3 letras de la marca y un número derivado de los dígitos del código de barras, corrido hasta encontrar uno libre. Determinista (mismo producto y código ⇒ mismo SKU) y editable a mano; el botón ⟳ lo regenera.
 - **Inventario:** stock por SKU, alertas de stock bajo y agotados, ajuste manual con motivo y bitácora de movimientos.
 - **Panel de ventas:** ingresos, pedidos, ticket promedio, unidades y **margen bruto** del periodo, con comparación contra el periodo anterior; gráfico de ventas por día; productos más vendidos; desglose por canal (tienda vs POS) y por forma de pago; exportación a CSV. Todo se calcula **en la base** (`ts_sales_summary`), no sumando en el navegador, y solo lo puede pedir el personal.
+- **Usuarios y roles** (solo administrador): alta de miembros del equipo con contraseña temporal generada, cambio de rol, activación/desactivación de la cuenta (banea el login en Auth) y restablecimiento de contraseña. Tres roles: `admin` (todo), `operador` (pedidos, preparación, POS, ventas, inventario) y `cliente` (solo compra).
 
 ## Flujo del pedido
 
