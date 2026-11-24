@@ -40,6 +40,12 @@ Son cuentas de sandbox con correo ya confirmado. **Las contraseñas no se guarda
 - **Inventario:** stock por SKU, alertas de stock bajo y agotados, ajuste manual con motivo y bitácora de movimientos.
 - **Panel de ventas:** ingresos, pedidos, ticket promedio, unidades y **margen bruto** del periodo, con comparación contra el periodo anterior; gráfico de ventas por día; productos más vendidos; desglose por canal (tienda vs POS) y por forma de pago; exportación a CSV. Todo se calcula **en la base** (`ts_sales_summary`), no sumando en el navegador, y solo lo puede pedir el personal.
 - **Usuarios y roles** (solo administrador): alta de miembros del equipo con contraseña temporal generada, cambio de rol, activación/desactivación de la cuenta (banea el login en Auth) y restablecimiento de contraseña. Tres roles: `admin` (todo), `operador` (pedidos, preparación, POS, ventas, inventario) y `cliente` (solo compra).
+- **Cotizaciones** (admin y operador): folio automático `COT-000001`, cliente, validez, descuento %, impuesto, notas; vista imprimible para enviar al cliente y conversión a pedido pendiente de pago con los precios cotizados.
+- **Configuración** (solo administrador): moneda (código, símbolo, decimales, formato regional), datos del negocio para documentos (razón social, NIT, teléfono, WhatsApp, dirección), impuesto y validez de cotizaciones, y **cuentas bancarias** donde se recibe el dinero.
+
+## Límite conocido de la moneda
+
+Cambiar la moneda ajusta **símbolo, decimales y formato**, no convierte los importes: los precios guardados son los mismos números. Para operar en dos monedas reales hace falta una tabla de tipos de cambio y decidir en qué moneda se registra cada pedido.
 
 ## Flujo del pedido
 
