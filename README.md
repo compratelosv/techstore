@@ -36,6 +36,7 @@ Son cuentas de sandbox creadas directamente en la base con correo ya confirmado.
 - **Alta escaneando:** en el formulario de producto se escanea el código real con la cámara (o desde una foto); el campo se llena solo, se valida el dígito verificador, se detecta si ya existe (abre ese producto en lugar de duplicarlo) y se consultan bases públicas para sugerir nombre y marca.
 - **SKU automático:** al escanear se arma como `CAT-MARCA-NNN` — abreviatura de categoría, 3 letras de la marca y un número derivado de los dígitos del código de barras, corrido hasta encontrar uno libre. Determinista (mismo producto y código ⇒ mismo SKU) y editable a mano; el botón ⟳ lo regenera.
 - **Inventario:** stock por SKU, alertas de stock bajo y agotados, ajuste manual con motivo y bitácora de movimientos.
+- **Panel de ventas:** ingresos, pedidos, ticket promedio, unidades y **margen bruto** del periodo, con comparación contra el periodo anterior; gráfico de ventas por día; productos más vendidos; desglose por canal (tienda vs POS) y por forma de pago; exportación a CSV. Todo se calcula **en la base** (`ts_sales_summary`), no sumando en el navegador, y solo lo puede pedir el personal.
 
 ## Flujo del pedido
 
