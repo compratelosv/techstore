@@ -69,7 +69,12 @@ async function boot() {
   const ver = own ? new URL(own.src).searchParams.get('v') : 'dev';
   $('#sideFoot').innerHTML = `
     <div>${esc(profile.full_name || '')} · <b>${esc(profile.role)}</b></div>
-    <div>v${ver}</div>`;
+    <div>v${ver}</div>
+    <button id="logoutBtn2">Cerrar sesión</button>`;
+  $('#logoutBtn2').onclick = async () => {
+    await sb.auth.signOut();
+    location.reload();
+  };
   window.__tsReady = true;
 
   // La sección de usuarios es solo para el administrador.
