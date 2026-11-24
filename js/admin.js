@@ -1,6 +1,7 @@
 /* admin.js — shell del panel: pedidos, preparación e inventario */
 import { sb, money, esc, toast, fmtDate, errMessage, STATUS_LABEL, getUser } from './core.js?v=6bf78bd8';
-import { initPos } from './pos.js?v=868ba2f2';
+import { initPos, scanOnce } from './pos.js?v=90cba46c';
+import { Scanner } from './scanner.js?v=90ef2e67';
 
 /* ---------------- estado ---------------- */
 const state = {
@@ -510,6 +511,43 @@ function newBarcode() {
   return ean13(`200${String(Date.now()).slice(-9)}`);
 }
 
+/* Bases públicas por código de barras (sin API key). Si no hay datos, se
+ * devuelve null y el formulario queda para llenado manual. */
+const PRODUCT_SOURCES = [
+  ['Open Food Facts', 'https://world.openfoodfacts.org/api/v2/product/'],
+  ['Open Beauty Facts', 'https://world.openbeautyfacts.org/api/v2/product/'],
+  ['Open Products Facts', 'https://world.openproductsfacts.org/api/v2/product/'],
+];
+
+async function lookupProductData(code) {
+  if (!/^\d{8,13}$/.test(code)) return null;
+  // El rango 200… es de uso interno: no corresponde a ningún producto comercial,
+  // y buscar ahí solo devuelve coincidencias falsas.
+  if (code.startsWith('200')) return null;
+
+  const attempts = PRODUCT_SOURCES.map(async ([source, base]) => {
+    try {
+      const ctl = new AbortController();
+      const timer = setTimeout(() => ctl.abort(), 5000);
+      const res = await fetch(`${base}${code}.json?fields=product_name,brands`, { signal: ctl.signal });
+      clearTimeout(timer);
+      if (!res.ok) return null;
+      const json = await res.json();
+      const name = json?.product?.product_name?.trim();
+      if (json?.status === 1 && name) {
+        return { name, brand: (json.product.brands || '').split(',')[0].trim(), source };
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  });
+
+  const all = Promise.all(attempts).then((list) => list.find(Boolean) || null);
+  const timeout = new Promise((resolve) => setTimeout(() => resolve(null), 7000));
+  return Promise.race([all, timeout]);
+}
+
 function openProductEditor(p = null) {
   const catOptions = state.categories
     .map((c) => `<option value="${c.id}" ${p?.category_id === c.id ? 'selected' : ''}>${esc(c.name)}</option>`)
@@ -559,9 +597,12 @@ function openProductEditor(p = null) {
         <div class="field">
           <label for="fBarcode">Código de barras (EAN-13)</label>
           <div class="row">
-            <input id="fBarcode" value="${esc(p?.barcode || '')}" placeholder="se genera si lo dejas vacío">
-            <button class="btn sm" id="fGen" type="button">Generar</button>
+            <input id="fBarcode" value="${esc(p?.barcode || '')}" placeholder="Escanea o deja vacío para generar">
+            <button class="btn sm primary" id="fScan" type="button" title="Escanear con la cámara">📷</button>
+            <button class="btn sm" id="fPhoto" type="button" title="Leer desde una foto">🖼</button>
+            <input type="file" id="fBarcodeFile" accept="image/*" capture="environment" hidden>
           </div>
+          <span class="small muted" id="fScanHint">Escanea el código del producto real y se rellena solo.</span>
         </div>
         <div class="field">
           <label for="fDesc">Descripción</label>
@@ -576,9 +617,81 @@ function openProductEditor(p = null) {
            <button class="btn ghost" id="fCancel">Cancelar</button>`,
   });
 
-  document.getElementById('fGen').onclick = () => {
-    document.getElementById('fBarcode').value = newBarcode();
+  const barcodeEl = document.getElementById('fBarcode');
+  const hintEl = document.getElementById('fScanHint');
+
+  /** Normaliza y valida el código leído; avisa de duplicados. */
+  async function applyScannedCode(raw) {
+    let code = String(raw || '').replace(/\s+/g, '');
+    // UPC-A (12) es el mismo símbolo que EAN-13 con un 0 delante.
+    if (/^\d{12}$/.test(code)) code = `0${code}`;
+
+    barcodeEl.value = code;
+
+    if (!/^\d{8}$|^\d{13}$/.test(code)) {
+      hintEl.textContent = `Código "${code}" no es EAN-8/EAN-13. Puedes guardarlo, pero no se recomienda.`;
+      hintEl.style.color = 'var(--warn)';
+      return;
+    }
+
+    if (/^\d{13}$/.test(code) && ean13(code.slice(0, 12)) !== code) {
+      hintEl.textContent = 'El dígito verificador no cuadra: puede ser una lectura errónea. Repite el escaneo.';
+      hintEl.style.color = 'var(--bad)';
+      return;
+    }
+
+    const dup = state.products.find((x) => (x.barcode || '') === code);
+    if (dup) {
+      hintEl.textContent = `Ese código ya es de "${dup.name}" (${dup.sku}). Editando ese producto en su lugar.`;
+      hintEl.style.color = 'var(--warn)';
+      toast('Ese código ya existe en el catálogo');
+      closeDrawer();
+      openProductEditor(dup);
+      return;
+    }
+
+    hintEl.textContent = `Código ${code} listo. Buscando datos del producto…`;
+    hintEl.style.color = 'var(--ok)';
+
+    const found = await lookupProductData(code);
+    if (found?.name) {
+      const nameEl = document.getElementById('fName');
+      const brandEl = document.getElementById('fBrand');
+      if (!nameEl.value) nameEl.value = found.name;
+      if (!brandEl.value && found.brand) brandEl.value = found.brand;
+      hintEl.textContent = `Datos traídos de ${found.source}: ${found.name}. Revísalos antes de guardar.`;
+    } else {
+      hintEl.textContent = `Código ${code} listo. No hay datos públicos: escribe nombre y precio.`;
+    }
+  }
+
+  document.getElementById('fScan').onclick = async (e) => {
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    const res = await scanOnce({ title: 'Escanea el código del producto a dar de alta' });
+    btn.disabled = false;
+    if (res?.value) await applyScannedCode(res.value);
   };
+
+  document.getElementById('fPhoto').onclick = () => document.getElementById('fBarcodeFile').click();
+  document.getElementById('fBarcodeFile').onchange = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    try {
+      const img = new Image();
+      img.src = URL.createObjectURL(file);
+      await img.decode();
+      const sc = new Scanner({ video: document.createElement('video'), onDetect: () => {} });
+      const res = await sc.decodeImageElement(img);
+      URL.revokeObjectURL(img.src);
+      await applyScannedCode(res.value);
+    } catch {
+      hintEl.textContent = 'No se encontró un código legible en la foto.';
+      hintEl.style.color = 'var(--bad)';
+    }
+  };
+
   document.getElementById('fCancel').onclick = closeDrawer;
 
   document.getElementById('fSave').onclick = async (e) => {
@@ -612,11 +725,16 @@ function openProductEditor(p = null) {
       btn.textContent = 'Guardar producto';
       return;
     }
-    if (!/^\d{13}$/.test(payload.barcode)) {
-      toast('El código de barras debe tener 13 dígitos (usa Generar)', 'err');
-      btn.disabled = false;
-      btn.textContent = 'Guardar producto';
-      return;
+    if (!/^\d{8}$|^\d{13}$/.test(payload.barcode)) {
+      // Códigos no estándar (Code 128, etiquetas propias): se permiten con aviso.
+      const seguir = confirm(
+        `"${payload.barcode}" no tiene formato EAN-8/EAN-13.\n\nSe puede guardar, pero la etiqueta se imprimirá como Code 128.\n¿Continuar?`
+      );
+      if (!seguir) {
+        btn.disabled = false;
+        btn.textContent = 'Guardar producto';
+        return;
+      }
     }
 
     const { error } = p

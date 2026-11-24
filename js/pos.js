@@ -14,6 +14,7 @@ let api = null;
 let products = [];
 let cart = []; // [{id, sku, barcode, name, price, qty, stock}]
 let scanner = null;
+let pendingScan = null; // resolve() de scanOnce(): lectura suelta para un formulario
 
 const $ = (s) => document.querySelector(s);
 
@@ -111,6 +112,24 @@ function closeScan() {
   scanner?.stop();
   scanner = null;
   $('#scanOverlay').classList.add('hidden');
+  if (pendingScan) {
+    const resolve = pendingScan;
+    pendingScan = null;
+    resolve(null);
+  }
+}
+
+/**
+ * Lee un solo código para usarlo en un formulario (alta de producto, búsqueda…).
+ * Devuelve { value, format } o null si se cancela.
+ */
+export async function scanOnce({ title = 'Escanea el código del producto' } = {}) {
+  if (pendingScan) return null; // ya hay una lectura en curso
+  const done = new Promise((resolve) => { pendingScan = resolve; });
+  await openScan();
+  feedback(title, '');
+  const value = await done;
+  return value ? { value } : null;
 }
 
 /** Lee un código desde una imagen (foto o captura) y lo agrega al ticket. */
@@ -155,6 +174,19 @@ function beep(ok = true) {
 function handleScanned(raw) {
   const code = String(raw || '').trim();
   if (!code) return;
+
+  // Lectura suelta para un formulario: se devuelve y se cierra el visor.
+  if (pendingScan) {
+    const resolve = pendingScan;
+    pendingScan = null;
+    beep(true);
+    if (navigator.vibrate) navigator.vibrate(35);
+    scanner?.stop();
+    scanner = null;
+    $('#scanOverlay').classList.add('hidden');
+    resolve(code);
+    return;
+  }
 
   const result = addByCode(code);
   if (result.ok) {
