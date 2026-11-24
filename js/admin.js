@@ -12,6 +12,8 @@ const state = {
   statusFilter: 'all',
   search: '',
   profile: null,
+  salesDays: 30,
+  salesData: null,
 };
 
 const $ = (s) => document.querySelector(s);
@@ -103,17 +105,22 @@ const TITLES = {
   orders: ['Pedidos', 'Todo lo que entró por la tienda y por el punto de venta'],
   fulfillment: ['Preparación', 'Lo que hay que embalar y entregar, por etapa'],
   pos: ['Punto de venta', 'Venta presencial: descuenta inventario al cobrar'],
+  sales: ['Ventas', 'Ingresos, ticket promedio, margen y productos más vendidos'],
   inventory: ['Inventario', 'Stock, precios y movimientos'],
 };
 
-// enlaces directos: admin.html#inventario, #pos, #preparacion, #pedidos
+// enlaces directos: admin.html#inventario, #pos, #preparacion, #pedidos, #ventas
 const HASH_TO_VIEW = {
   pedidos: 'orders', orders: 'orders',
   preparacion: 'fulfillment', fulfillment: 'fulfillment',
   pos: 'pos',
+  ventas: 'sales', sales: 'sales',
   inventario: 'inventory', inventory: 'inventory',
 };
-const VIEW_TO_HASH = { orders: 'pedidos', fulfillment: 'preparacion', pos: 'pos', inventory: 'inventario' };
+const VIEW_TO_HASH = {
+  orders: 'pedidos', fulfillment: 'preparacion', pos: 'pos',
+  sales: 'ventas', inventory: 'inventario',
+};
 
 function viewFromHash() {
   const key = (location.hash || '').replace('#', '').trim().toLowerCase();
@@ -123,7 +130,7 @@ function viewFromHash() {
 function setView(view, { syncHash = true } = {}) {
   state.view = view;
   $$('#sideNav button').forEach((b) => b.classList.toggle('active', b.dataset.view === view));
-  ['orders', 'fulfillment', 'pos', 'inventory'].forEach((v) => {
+  ['orders', 'fulfillment', 'pos', 'sales', 'inventory'].forEach((v) => {
     $(`#view-${v}`).classList.toggle('hidden', v !== view);
   });
   $('#viewTitle').textContent = TITLES[view][0];
@@ -135,6 +142,7 @@ function setView(view, { syncHash = true } = {}) {
   if (view === 'fulfillment') renderKanban();
   if (view === 'inventory') renderInventory();
   if (view === 'pos') renderPos();
+  if (view === 'sales') renderSales();
 }
 
 window.addEventListener('hashchange', () => setView(viewFromHash(), { syncHash: false }));
@@ -498,6 +506,176 @@ async function openInventory(productId) {
     if (e.target.id === 'dClose2') closeDrawer();
   }, { once: true });
 }
+
+/* ---------------- ventas ---------------- */
+function pct(cur, prev) {
+  if (!prev) return null;
+  return ((cur - prev) / prev) * 100;
+}
+
+function deltaBadge(value) {
+  if (value === null) return '<span class="small muted">sin periodo previo</span>';
+  const up = value >= 0;
+  const color = up ? 'var(--ok)' : 'var(--bad)';
+  return `<span class="small" style="color:${color};font-weight:700">${up ? '▲' : '▼'} ${Math.abs(value).toFixed(1)}%</span>`;
+}
+
+function emptyDays(fromDate, days) {
+  const out = [];
+  const start = new Date(`${fromDate}T00:00:00`);
+  for (let i = 0; i < days; i += 1) {
+    const d = new Date(start);
+    d.setDate(start.getDate() + i);
+    out.push(d.toISOString().slice(0, 10));
+  }
+  return out;
+}
+
+function chartSvg(daily, fromDate, days) {
+  const map = new Map((daily || []).map((d) => [String(d.day).slice(0, 10), Number(d.revenue)]));
+  const series = emptyDays(fromDate, days).map((day) => ({
+    day,
+    revenue: map.get(day) || 0,
+  }));
+  const max = Math.max(...series.map((s) => s.revenue), 1);
+  const W = 820;
+  const H = 230;
+  const padL = 46;
+  const padB = 28;
+  const padT = 12;
+  const plotW = W - padL - 12;
+  const plotH = H - padB - padT;
+  const bw = plotW / series.length;
+  const barW = Math.max(2, Math.min(28, bw * 0.62));
+  const step = Math.ceil(series.length / 8);
+
+  const bars = series
+    .map((s, i) => {
+      const h = (s.revenue / max) * plotH;
+      const x = padL + i * bw + (bw - barW) / 2;
+      const y = padT + plotH - h;
+      const label = s.revenue > 0
+        ? `<title>${s.day}: ${money(s.revenue)}</title>`
+        : `<title>${s.day}: sin ventas</title>`;
+      return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${h.toFixed(1)}"
+                 rx="2" fill="${s.revenue > 0 ? '#6366f1' : '#1f2a44'}">${label}</rect>`;
+    })
+    .join('');
+
+  const guides = [0, 0.5, 1]
+    .map((frac) => {
+      const y = padT + plotH - frac * plotH;
+      return `<line x1="${padL}" y1="${y}" x2="${W - 12}" y2="${y}" stroke="#25314e" stroke-width="1" stroke-dasharray="3 4"/>
+              <text x="${padL - 8}" y="${y + 4}" text-anchor="end" font-size="10" fill="#93a0bd">${money(max * frac).replace('.00', '')}</text>`;
+    })
+    .join('');
+
+  const labels = series
+    .map((s, i) => {
+      if (i % step !== 0) return '';
+      const x = padL + i * bw + bw / 2;
+      return `<text x="${x.toFixed(1)}" y="${H - 8}" text-anchor="middle" font-size="10" fill="#93a0bd">${s.day.slice(5)}</text>`;
+    })
+    .join('');
+
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" height="230" preserveAspectRatio="none" role="img" aria-label="Ventas por día">
+    ${guides}${bars}${labels}
+  </svg>`;
+}
+
+function breakdown(rows, labelKey, valueKey) {
+  const total = rows.reduce((n, r) => n + Number(r[valueKey] || 0), 0);
+  if (!rows.length) return '<p class="small muted">Sin datos.</p>';
+  return rows
+    .map((r) => {
+      const share = total ? (Number(r[valueKey]) / total) * 100 : 0;
+      return `
+        <div style="margin-bottom:.55rem">
+          <div class="row" style="justify-content:space-between;font-size:.84rem">
+            <span>${esc(String(r[labelKey]))}</span>
+            <b>${money(r[valueKey])}</b>
+          </div>
+          <div style="height:6px;background:var(--bg);border-radius:999px;overflow:hidden;margin-top:.25rem">
+            <div style="width:${share.toFixed(1)}%;height:100%;background:var(--accent)"></div>
+          </div>
+          <div class="small muted" style="font-size:.72rem">${share.toFixed(0)}%</div>
+        </div>`;
+    })
+    .join('');
+}
+
+async function renderSales() {
+  const days = state.salesDays || 30;
+  $('#salesKpis').innerHTML = '<div class="kpi"><span>Cargando</span><b>…</b></div>';
+
+  const { data, error } = await sb.rpc('ts_sales_summary', { p_days: days });
+  if (error) {
+    $('#salesKpis').innerHTML = '';
+    toast(errMessage(error), 'err');
+    return;
+  }
+  state.salesData = data;
+
+  const t = data.totals || {};
+  const p = data.previous || {};
+  const shareDelta = pct(Number(t.revenue), Number(p.revenue));
+  const ordersDelta = pct(Number(t.orders), Number(p.orders));
+
+  $('#salesKpis').innerHTML = `
+    <div class="kpi"><span>Ingresos</span><b>${money(t.revenue)}</b>${deltaBadge(shareDelta)}</div>
+    <div class="kpi"><span>Pedidos</span><b>${t.orders || 0}</b>${deltaBadge(ordersDelta)}</div>
+    <div class="kpi"><span>Ticket promedio</span><b>${money(t.avg_ticket)}</b></div>
+    <div class="kpi"><span>Unidades vendidas</span><b>${t.units || 0}</b></div>
+    <div class="kpi"><span>Margen bruto</span><b>${money(t.margin)}</b>
+      <span class="small muted" style="text-transform:none;letter-spacing:0">costo ${money(t.cost)}</span></div>`;
+
+  $('#salesChart').innerHTML = chartSvg(data.daily, data.from_date, days);
+  $('#salesChartSub').innerHTML =
+    `${data.from_date} → ${data.to_date} · productos ${money(t.products)} + envíos ${money(t.shipping)} = <b>${money(t.revenue)}</b>`;
+
+  const top = data.top_products || [];
+  $('#salesTop').querySelector('tbody').innerHTML = top
+    .map(
+      (r) => `<tr>
+        <td>${esc(r.name)}</td>
+        <td class="mono small">${esc(r.sku)}</td>
+        <td class="num">${r.units}</td>
+        <td class="num">${money(r.revenue)}</td>
+      </tr>`
+    )
+    .join('');
+  $('#salesTopEmpty').hidden = top.length > 0;
+
+  $('#salesChannel').innerHTML = breakdown(data.by_channel || [], 'channel', 'revenue');
+  $('#salesPayment').innerHTML = breakdown(data.by_payment || [], 'provider', 'revenue');
+}
+
+$('#salesRange').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-days]');
+  if (!btn) return;
+  state.salesDays = Number(btn.dataset.days);
+  $$('#salesRange .tab-btn').forEach((b) => b.classList.toggle('active', b === btn));
+  renderSales();
+});
+
+$('#salesExport').addEventListener('click', () => {
+  const d = state.salesData;
+  if (!d) return toast('Abre el reporte primero', 'err');
+  const map = new Map((d.daily || []).map((r) => [String(r.day).slice(0, 10), r]));
+  const rows = [['dia', 'ingresos', 'pedidos']];
+  for (const day of emptyDays(d.from_date, d.salesDays || state.salesDays || 30)) {
+    const r = map.get(day);
+    rows.push([day, r ? Number(r.revenue).toFixed(2) : '0.00', r ? r.orders : 0]);
+  }
+  const csv = rows.map((r) => r.join(',')).join('\n');
+  const url = URL.createObjectURL(new Blob([`\ufeff${csv}`], { type: 'text/csv;charset=utf-8' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `ventas-${d.from_date}-a-${d.to_date}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('CSV descargado');
+});
 
 /* ---------------- alta y edición de productos ---------------- */
 function ean13(base12) {

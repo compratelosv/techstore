@@ -36,6 +36,7 @@
       <button data-view="orders" class="active">📦 Pedidos</button>
       <button data-view="fulfillment">🏷️ Preparación</button>
       <button data-view="pos">🛒 Punto de venta</button>
+      <button data-view="sales">📈 Ventas</button>
       <button data-view="inventory">📊 Inventario</button>
     </nav>
     <div class="side-foot">
@@ -145,6 +146,53 @@
       <div class="scan-bottom" id="scanFeedback">Enfoca el código…</div>
     </div>
 
+    <!-- VENTAS -->
+    <section id="view-sales" class="hidden">
+      <div class="row wrap" style="justify-content:space-between;margin-bottom:1rem">
+        <div class="tabs" id="salesRange">
+          <button class="tab-btn" data-days="7">Últimos 7 días</button>
+          <button class="tab-btn active" data-days="30">Últimos 30 días</button>
+          <button class="tab-btn" data-days="90">Últimos 90 días</button>
+        </div>
+        <button class="btn sm" id="salesExport">Exportar CSV</button>
+      </div>
+
+      <div class="kpis" id="salesKpis"></div>
+
+      <div class="panel" style="margin-bottom:1rem">
+        <div class="row" style="justify-content:space-between;align-items:baseline">
+          <h3 style="margin:0">Ventas por día</h3>
+          <span class="small muted" id="salesChartSub"></span>
+        </div>
+        <div id="salesChart" style="margin-top:.6rem"></div>
+      </div>
+
+      <div class="grid-2">
+        <div class="panel">
+          <h3>Productos más vendidos</h3>
+          <div style="overflow-x:auto">
+            <table class="table" id="salesTop">
+              <thead>
+                <tr><th>Producto</th><th>SKU</th><th class="num">Unid.</th><th class="num">Ingresos</th></tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <p class="small muted" id="salesTopEmpty" hidden>Sin ventas en este periodo.</p>
+        </div>
+        <div>
+          <div class="panel" style="margin-bottom:1rem">
+            <h3>Por canal</h3>
+            <div id="salesChannel"></div>
+          </div>
+          <div class="panel">
+            <h3>Por forma de pago</h3>
+            <div id="salesPayment"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- INVENTARIO -->
     <section id="view-inventory" class="hidden">
       <div class="kpis" id="invKpis"></div>
@@ -187,6 +235,6 @@
 <script src="vendor/zxing-library.min.js"></script>
 <script src="vendor/zxing-browser.min.js"></script>
 <script src="vendor/jsbarcode.min.js"></script>
-<script type="module" src="js/admin.js?v=d6e1f37e"></script>
+<script type="module" src="js/admin.js?v=5c99f9b8"></script>
 </body>
 </html>
