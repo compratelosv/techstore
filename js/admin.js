@@ -18,6 +18,9 @@ const state = {
   quotes: [],
   quoteFilter: 'all',
   banks: [],
+  customers: [],
+  suppliers: [],
+  purchases: [],
 };
 
 const $ = (s) => document.querySelector(s);
@@ -80,6 +83,7 @@ async function boot() {
   // La sección de usuarios es solo para el administrador.
   const isAdmin = profile.role === 'admin';
   $('#navUsers').classList.toggle('hidden', !isAdmin);
+  $('#navSuppliers').classList.toggle('hidden', !isAdmin);
   $('#navSettings').classList.toggle('hidden', !isAdmin);
 
   await loadSettings();
@@ -140,6 +144,8 @@ const TITLES = {
   pos: ['Punto de venta', 'Venta presencial: descuenta inventario al cobrar'],
   sales: ['Ventas', 'Ingresos, ticket promedio, margen y productos más vendidos'],
   quotes: ['Cotizaciones', 'Propuestas de precio para clientes, listas para enviar'],
+  customers: ['Clientes', 'Quién compra, cuánto gasta y qué notas dejó el equipo'],
+  suppliers: ['Proveedores', 'A quién le compras y qué mercancía viene en camino'],
   users: ['Usuarios', 'Quién entra al panel y con qué rol'],
   settings: ['Configuración', 'Moneda, datos del negocio, impuestos y cuentas bancarias'],
   inventory: ['Inventario', 'Stock, precios y movimientos'],
@@ -151,6 +157,8 @@ const HASH_TO_VIEW = {
   preparacion: 'fulfillment', fulfillment: 'fulfillment',
   pos: 'pos',
   cotizaciones: 'quotes', quotes: 'quotes',
+  clientes: 'customers', customers: 'customers',
+  proveedores: 'suppliers', suppliers: 'suppliers',
   ventas: 'sales', sales: 'sales',
   usuarios: 'users', users: 'users',
   configuracion: 'settings', settings: 'settings',
@@ -158,6 +166,7 @@ const HASH_TO_VIEW = {
 };
 const VIEW_TO_HASH = {
   orders: 'pedidos', fulfillment: 'preparacion', pos: 'pos', quotes: 'cotizaciones',
+  customers: 'clientes', suppliers: 'proveedores',
   sales: 'ventas', users: 'usuarios', settings: 'configuracion', inventory: 'inventario',
 };
 
@@ -169,7 +178,7 @@ function viewFromHash() {
 function setView(view, { syncHash = true } = {}) {
   state.view = view;
   $$('#sideNav button').forEach((b) => b.classList.toggle('active', b.dataset.view === view));
-  ['orders', 'fulfillment', 'pos', 'quotes', 'sales', 'users', 'settings', 'inventory'].forEach((v) => {
+  ['orders', 'fulfillment', 'pos', 'quotes', 'customers', 'suppliers', 'sales', 'users', 'settings', 'inventory'].forEach((v) => {
     $(`#view-${v}`).classList.toggle('hidden', v !== view);
   });
   $('#viewTitle').textContent = TITLES[view][0];
@@ -184,6 +193,8 @@ function setView(view, { syncHash = true } = {}) {
   if (view === 'pos') renderPos();
   if (view === 'sales') renderSales();
   if (view === 'quotes') renderQuotes();
+  if (view === 'customers') renderCustomers();
+  if (view === 'suppliers') renderSuppliers();
   if (view === 'users') renderUsers();
   if (view === 'settings') renderSettings();
 }
@@ -1007,6 +1018,405 @@ async function openQuoteEditor(quoteId = null) {
 }
 
 $('#btnNewQuote').addEventListener('click', () => openQuoteEditor(null));
+
+/* ---------------- clientes ---------------- */
+let customerPicks = [];
+
+async function renderCustomers() {
+  const tbody = $('#custTable').querySelector('tbody');
+  tbody.innerHTML = '<tr><td colspan="7" class="small muted">Cargando…</td></tr>';
+
+  const { data, error } = await sb.rpc('ts_customers_list');
+  if (error) {
+    tbody.innerHTML = '';
+    return toast(errMessage(error), 'err');
+  }
+  customerPicks = data || [];
+  drawCustomers();
+}
+
+function drawCustomers() {
+  const term = ($('#custSearch').value || '').toLowerCase().trim();
+  const rows = customerPicks.filter((c) =>
+    !term ||
+    (c.name || '').toLowerCase().includes(term) ||
+    (c.email || '').toLowerCase().includes(term) ||
+    (c.phone || '').toLowerCase().includes(term)
+  );
+
+  const totalSpent = customerPicks.reduce((n, c) => n + Number(c.spent || 0), 0);
+  const recurrentes = customerPicks.filter((c) => Number(c.orders) > 1).length;
+  const mejor = customerPicks[0];
+  $('#custKpis').innerHTML = `
+    <div class="kpi"><span class="k-label">Clientes con compras</span><b>${customerPicks.length}</b></div>
+    <div class="kpi"><span class="k-label">Recurrentes (2+)</span><b>${recurrentes}</b></div>
+    <div class="kpi"><span class="k-label">Gasto acumulado</span><b>${money(totalSpent)}</b></div>
+    <div class="kpi"><span class="k-label">Mejor cliente</span><b>${mejor ? esc(mejor.name) : '—'}</b><span class="k-sub">${mejor ? money(mejor.spent) : ''}</span></div>`;
+
+  $('#custTable').querySelector('tbody').innerHTML = rows
+    .map((c) => {
+      const ticket = Number(c.orders) ? Number(c.spent) / Number(c.orders) : 0;
+      return `<tr>
+        <td><b>${esc(c.name || 'Cliente')}</b>${c.active === false ? ' <span class="badge cancelado">inactivo</span>' : ''}
+            <div class="small muted">${esc(c.city || '')}</div></td>
+        <td class="small">${esc(c.email || '—')}<div class="muted">${esc(c.phone || '')}</div></td>
+        <td class="num">${c.orders}</td>
+        <td class="num">${money(c.spent)}</td>
+        <td class="num">${money(ticket)}</td>
+        <td class="small">${c.last_at ? fmtDate(c.last_at) : '—'}</td>
+        <td><button class="btn sm" data-cust="${c.user_id}">Ver ficha</button></td>
+      </tr>`;
+    })
+    .join('');
+  $('#custEmpty').hidden = rows.length > 0;
+}
+
+$('#custSearch').addEventListener('input', drawCustomers);
+$('#btnRefreshCust').addEventListener('click', renderCustomers);
+
+$('#custTable').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-cust]');
+  if (b) openCustomer(b.dataset.cust);
+});
+
+async function openCustomer(userId) {
+  const { data, error } = await sb.rpc('ts_customer_detail', { p_user_id: userId });
+  if (error) return toast(errMessage(error), 'err');
+
+  const p = data.profile || {};
+  const orders = data.orders || [];
+  const notes = data.notes || [];
+  const addrs = data.addresses || [];
+  const spent = orders.filter((o) => !['cancelado', 'reembolsado'].includes(o.status))
+    .reduce((n, o) => n + Number(o.total), 0);
+
+  openDrawer({
+    title: p.full_name || 'Cliente',
+    subtitle: p.email || '',
+    body: `
+      <div class="kpis" style="margin-bottom:.8rem">
+        <div class="kpi"><span class="k-label">Pedidos</span><b>${orders.length}</b></div>
+        <div class="kpi"><span class="k-label">Gastado</span><b>${money(spent)}</b></div>
+        <div class="kpi"><span class="k-label">Ticket promedio</span><b>${money(orders.length ? spent / orders.length : 0)}</b></div>
+        <div class="kpi"><span class="k-label">Estado</span><b>${p.active === false ? 'Inactivo' : 'Activo'}</b></div>
+      </div>
+
+      <div class="panel" style="margin-bottom:.8rem">
+        <h3>Datos</h3>
+        <p class="small" style="line-height:1.9">
+          Correo: <b>${esc(p.email || '—')}</b><br>
+          Teléfono: <b>${esc(p.phone || '—')}</b><br>
+          Alta: ${p.created_at ? fmtDate(p.created_at) : '—'}
+        </p>
+        ${addrs.length ? `<p class="small muted">Direcciones: ${addrs.map((a) => esc(`${a.line1 || ''} ${a.city || ''}`.trim())).join(' · ')}</p>` : ''}
+      </div>
+
+      <div class="panel" style="margin-bottom:.8rem">
+        <h3>Historial de compras</h3>
+        ${orders.length ? `<div class="small">${orders.map((o) => `
+          <div class="line" style="grid-template-columns:1fr auto;padding:.45rem 0">
+            <div><div class="tl-name">${esc(o.code)} · ${o.items} art.</div>
+                 <div class="tl-sub">${fmtDate(o.created_at)} · ${o.channel === 'pos' ? 'mostrador' : 'en línea'}</div></div>
+            <div style="text-align:right"><b>${money(o.total)}</b>
+                 <div class="small muted">${STATUS_LABEL[o.status] || o.status}</div></div>
+          </div>`).join('')}</div>` : '<p class="small muted">Sin pedidos.</p>'}
+      </div>
+
+      <div class="panel">
+        <h3>Notas internas</h3>
+        <p class="small muted" style="margin-top:0">Solo las ve el equipo.</p>
+        <div class="field"><textarea id="cNote" rows="2" placeholder="Ej: prefiere entrega los sábados"></textarea></div>
+        <button class="btn sm primary" id="cNoteAdd">Agregar nota</button>
+        <div id="cNotes" style="margin-top:.7rem">
+          ${notes.length
+            ? notes.map((n) => `<div class="small" style="border-top:1px solid var(--line);padding:.4rem 0">
+                ${esc(n.note)}<div class="muted" style="font-size:.72rem">${fmtDate(n.created_at)}</div></div>`).join('')
+            : '<p class="small muted">Sin notas.</p>'}
+        </div>
+      </div>`,
+    foot: `<button class="btn ghost" id="cClose">Cerrar</button>`,
+  });
+
+  $('#cClose').onclick = closeDrawer;
+  $('#cNoteAdd').onclick = async (e) => {
+    const txt = $('#cNote').value.trim();
+    if (!txt) return;
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    const { error: err } = await sb.from('ts_customer_notes').insert({ user_id: userId, note: txt });
+    btn.disabled = false;
+    if (err) return toast(errMessage(err), 'err');
+    toast('Nota guardada');
+    openCustomer(userId);
+  };
+}
+
+/* ---------------- proveedores y compras ---------------- */
+let purchaseCart = [];
+
+async function renderSuppliers() {
+  if (state.profile?.role !== 'admin') {
+    toast('Solo el administrador ve proveedores y costos', 'err');
+    return setView('orders');
+  }
+
+  const [{ data: sup, error: e1 }, { data: pur, error: e2 }] = await Promise.all([
+    sb.from('ts_suppliers').select('*').order('name'),
+    sb.from('ts_purchases').select('*, ts_purchase_items(qty)').order('created_at', { ascending: false }).limit(60),
+  ]);
+  if (e1 || e2) return toast(errMessage(e1 || e2), 'err');
+
+  state.suppliers = sup || [];
+  state.purchases = pur || [];
+
+  const pendientes = state.purchases.filter((p) => p.status === 'pendiente');
+  const comprado = state.purchases
+    .filter((p) => p.status === 'recibida')
+    .reduce((n, p) => n + Number(p.total), 0);
+
+  $('#supKpis').innerHTML = `
+    <div class="kpi"><span class="k-label">Proveedores activos</span><b>${state.suppliers.filter((s) => s.active).length}</b></div>
+    <div class="kpi"><span class="k-label">Compras pendientes</span><b>${pendientes.length}</b></div>
+    <div class="kpi"><span class="k-label">Comprado (recibido)</span><b>${money(comprado)}</b></div>
+    <div class="kpi"><span class="k-label">Unidades en tránsito</span><b>${pendientes.reduce((n, p) => n + Number((p.ts_purchase_items || []).reduce((m, i) => m + i.qty, 0)), 0)}</b></div>`;
+
+  $('#supplierList').innerHTML = state.suppliers
+    .map((s) => `<div class="line" style="grid-template-columns:1fr auto;padding:.55rem 0">
+      <div>
+        <div class="tl-name">${esc(s.name)} ${s.active ? '' : '<span class="badge cancelado">inactivo</span>'}</div>
+        <div class="tl-sub">${esc(s.contact_name || '—')} · ${esc(s.phone || '')} ${s.email ? '· ' + esc(s.email) : ''}</div>
+      </div>
+      <div class="row" style="gap:.3rem">
+        <button class="btn sm ghost" data-sup-edit="${s.id}">Editar</button>
+        <button class="btn sm ${s.active ? 'ghost' : ''}" data-sup-toggle="${s.id}" data-active="${s.active}">${s.active ? 'Pausar' : 'Activar'}</button>
+      </div>
+    </div>`)
+    .join('');
+  $('#supEmpty').hidden = state.suppliers.length > 0;
+
+  $('#purchaseList').innerHTML = state.purchases
+    .map((p) => {
+      const sup = state.suppliers.find((s) => s.id === p.supplier_id);
+      const unidades = (p.ts_purchase_items || []).reduce((n, i) => n + i.qty, 0);
+      const badge = p.status === 'recibida' ? 'entregado' : p.status === 'cancelada' ? 'cancelado' : 'pendiente_pago';
+      return `<div class="line" style="grid-template-columns:1fr auto;padding:.55rem 0">
+        <div>
+          <div class="tl-name">${esc(p.code)} · ${esc(sup ? sup.name : 'Sin proveedor')}
+            <span class="badge ${badge}">${p.status}</span></div>
+          <div class="tl-sub">${fmtDate(p.created_at)} · ${unidades} u. · ${money(p.total)}</div>
+        </div>
+        <div class="row" style="gap:.3rem">
+          ${p.status === 'pendiente' ? `
+            <button class="btn sm primary" data-pur-receive="${p.id}">Recibir</button>
+            <button class="btn sm ghost" data-pur-cancel="${p.id}">Cancelar</button>` : ''}
+        </div>
+      </div>`;
+    })
+    .join('');
+  $('#purEmpty').hidden = state.purchases.length > 0;
+}
+
+$('#supplierList').addEventListener('click', async (e) => {
+  const edit = e.target.closest('[data-sup-edit]');
+  const tog = e.target.closest('[data-sup-toggle]');
+  if (edit) {
+    const s = state.suppliers.find((x) => x.id === edit.dataset.supEdit);
+    openSupplierForm(s);
+  }
+  if (tog) {
+    const { error } = await sb.from('ts_suppliers')
+      .update({ active: tog.dataset.active === 'false' })
+      .eq('id', tog.dataset.supToggle);
+    if (error) return toast(errMessage(error), 'err');
+    renderSuppliers();
+  }
+});
+
+$('#purchaseList').addEventListener('click', async (e) => {
+  const rec = e.target.closest('[data-pur-receive]');
+  const can = e.target.closest('[data-pur-cancel]');
+  if (rec) {
+    if (!confirm('Recibir esta compra? Se sumará el stock de cada producto y se actualizará su costo.')) return;
+    const { error } = await sb.rpc('ts_purchase_receive', { p_purchase_id: rec.dataset.purReceive });
+    if (error) return toast(errMessage(error), 'err');
+    toast('Compra recibida e inventario actualizado');
+    await loadProducts();
+    renderSuppliers();
+  }
+  if (can) {
+    if (!confirm('Cancelar esta compra?')) return;
+    const { error } = await sb.rpc('ts_purchase_cancel', { p_purchase_id: can.dataset.purCancel });
+    if (error) return toast(errMessage(error), 'err');
+    toast('Compra cancelada');
+    renderSuppliers();
+  }
+});
+
+function openSupplierForm(supplier = null) {
+  openDrawer({
+    title: supplier ? supplier.name : 'Nuevo proveedor',
+    subtitle: 'Quién te surte la mercancía',
+    body: `<div class="panel">
+      <div class="field"><label for="sName">Nombre *</label><input id="sName" value="${esc(supplier?.name || '')}"></div>
+      <div class="row" style="gap:.6rem">
+        <div class="field" style="flex:1"><label for="sContact">Contacto</label><input id="sContact" value="${esc(supplier?.contact_name || '')}"></div>
+        <div class="field" style="flex:1"><label for="sPhone">Teléfono</label><input id="sPhone" value="${esc(supplier?.phone || '')}"></div>
+      </div>
+      <div class="row" style="gap:.6rem">
+        <div class="field" style="flex:1"><label for="sEmail">Correo</label><input id="sEmail" value="${esc(supplier?.email || '')}"></div>
+        <div class="field" style="flex:1"><label for="sNit">NIT / registro</label><input id="sNit" value="${esc(supplier?.nit || '')}"></div>
+      </div>
+      <div class="field"><label for="sAddr">Dirección</label><input id="sAddr" value="${esc(supplier?.address || '')}"></div>
+      <div class="field"><label for="sNotes">Notas</label><textarea id="sNotes" rows="2">${esc(supplier?.notes || '')}</textarea></div>
+    </div>`,
+    foot: `<button class="btn primary" id="sSave">${supplier ? 'Guardar cambios' : 'Crear proveedor'}</button>
+           <button class="btn ghost" id="sCancel">Cancelar</button>`,
+  });
+
+  $('#sCancel').onclick = closeDrawer;
+  $('#sSave').onclick = async (e) => {
+    const payload = {
+      name: $('#sName').value.trim(),
+      contact_name: $('#sContact').value.trim() || null,
+      phone: $('#sPhone').value.trim() || null,
+      email: $('#sEmail').value.trim() || null,
+      nit: $('#sNit').value.trim() || null,
+      address: $('#sAddr').value.trim() || null,
+      notes: $('#sNotes').value.trim() || null,
+    };
+    if (!payload.name) return toast('El nombre es obligatorio', 'err');
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    const { error } = supplier
+      ? await sb.from('ts_suppliers').update(payload).eq('id', supplier.id)
+      : await sb.from('ts_suppliers').insert(payload);
+    btn.disabled = false;
+    if (error) return toast(errMessage(error), 'err');
+    toast(supplier ? 'Proveedor actualizado' : 'Proveedor creado');
+    closeDrawer();
+    renderSuppliers();
+  };
+}
+
+$('#btnNewSupplier').addEventListener('click', () => openSupplierForm(null));
+
+$('#btnNewPurchase').addEventListener('click', () => {
+  if (!state.suppliers?.length) return toast('Crea primero un proveedor', 'err');
+  openPurchaseForm();
+});
+
+function openPurchaseForm() {
+  purchaseCart = [];
+  openDrawer({
+    title: 'Registrar compra',
+    subtitle: 'Entrada de mercancía al inventario',
+    body: `
+      <div class="panel" style="margin-bottom:.8rem">
+        <div class="field"><label for="pSup">Proveedor *</label>
+          <select id="pSup">${state.suppliers.filter((s) => s.active).map((s) => `<option value="${s.id}">${esc(s.name)}</option>`).join('')}</select>
+        </div>
+        <div class="field"><label for="pNotes">Notas</label><input id="pNotes" placeholder="Factura 00123, entrega parcial…"></div>
+      </div>
+
+      <div class="panel" style="margin-bottom:.8rem">
+        <h3>Productos</h3>
+        <div class="field"><input id="pSearch" placeholder="Buscar por nombre o SKU…"></div>
+        <div class="pos-products" id="pProducts" style="max-height:200px"></div>
+      </div>
+
+      <div class="panel">
+        <h3>Líneas</h3>
+        <div id="pLines"></div>
+        <p class="small muted" id="pLinesEmpty">Aún no hay productos.</p>
+        <div class="pos-total"><span>Total compra</span><span id="pTotal">$0.00</span></div>
+        <p class="small muted">La compra queda <b>pendiente</b>: el stock se suma cuando pulses "Recibir".</p>
+      </div>`,
+    foot: `<button class="btn primary" id="pSave">Guardar compra</button>
+           <button class="btn ghost" id="pCancel">Cancelar</button>`,
+  });
+
+  const drawProducts = () => {
+    const term = ($('#pSearch').value || '').toLowerCase();
+    $('#pProducts').innerHTML = state.products
+      .filter((p) => !term || p.name.toLowerCase().includes(term) || p.sku.toLowerCase().includes(term))
+      .slice(0, 40)
+      .map((p) => `<button class="pos-tile" data-p-add="${p.id}">
+        <div class="n">${esc(p.name)}</div>
+        <div class="s">${esc(p.sku)} · stock ${p.stock}</div>
+        <div class="p">costo ${money(p.cost || 0)}</div></button>`)
+      .join('');
+  };
+
+  const drawLines = () => {
+    $('#pLines').innerHTML = purchaseCart
+      .map((i, idx) => `<div class="ticket-line">
+        <div><div class="tl-name">${esc(i.name)}</div><div class="tl-sub">${esc(i.sku)}</div></div>
+        <div class="tl-right">
+          <input type="number" min="1" value="${i.qty}" data-p-qty="${idx}" style="width:64px" aria-label="cantidad">
+          <input type="number" min="0" step="0.01" value="${i.cost}" data-p-cost="${idx}" style="width:86px" aria-label="costo">
+          <div class="amount">${money(i.qty * i.cost)}</div>
+          <button class="btn ghost sm" data-p-del="${idx}">✕</button>
+        </div>
+      </div>`)
+      .join('');
+    $('#pLinesEmpty').hidden = purchaseCart.length > 0;
+    $('#pTotal').textContent = money(purchaseCart.reduce((n, i) => n + i.qty * i.cost, 0));
+  };
+
+  $('#pSearch').addEventListener('input', drawProducts);
+  $('#pProducts').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-p-add]');
+    if (!b) return;
+    const p = state.products.find((x) => x.id === b.dataset.pAdd);
+    const found = purchaseCart.find((i) => i.id === p.id);
+    if (found) found.qty += 1;
+    else purchaseCart.push({ id: p.id, sku: p.sku, name: p.name, qty: 1, cost: Number(p.cost || 0) });
+    drawLines();
+  });
+
+  $('#pLines').addEventListener('input', (e) => {
+    const q = e.target.closest('[data-p-qty]');
+    const c = e.target.closest('[data-p-cost]');
+    let idx = null;
+    if (q) {
+      idx = Number(q.dataset.pQty);
+      purchaseCart[idx].qty = Math.max(1, Math.floor(Number(q.value) || 1));
+    } else if (c) {
+      idx = Number(c.dataset.pCost);
+      purchaseCart[idx].cost = Math.max(0, Number(c.value) || 0);
+    } else return;
+    const line = $('#pLines').children[idx];
+    if (line) line.querySelector('.amount').textContent = money(purchaseCart[idx].qty * purchaseCart[idx].cost);
+    $('#pTotal').textContent = money(purchaseCart.reduce((n, x) => n + x.qty * x.cost, 0));
+  });
+
+  $('#pLines').addEventListener('click', (e) => {
+    const del = e.target.closest('[data-p-del]');
+    if (!del) return;
+    purchaseCart.splice(Number(del.dataset.pDel), 1);
+    drawLines();
+  });
+
+  $('#pCancel').onclick = closeDrawer;
+  $('#pSave').onclick = async (e) => {
+    if (!purchaseCart.length) return toast('Agrega al menos un producto', 'err');
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    const { data, error } = await sb.rpc('ts_purchase_create', {
+      p_supplier_id: $('#pSup').value,
+      p_items: purchaseCart.map((i) => ({ product_id: i.id, qty: i.qty, unit_cost: i.cost })),
+      p_notes: $('#pNotes').value.trim() || null,
+    });
+    btn.disabled = false;
+    if (error) return toast(errMessage(error), 'err');
+    toast(`Compra ${data.code} registrada`);
+    closeDrawer();
+    renderSuppliers();
+  };
+
+  drawProducts();
+  drawLines();
+}
 
 /* ---------------- usuarios y roles ---------------- */
 const ROLE_LABEL = { admin: 'Administrador', operador: 'Operador', cliente: 'Cliente' };

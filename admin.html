@@ -57,6 +57,7 @@
         <button data-view="fulfillment">🏷️ Preparación</button>
         <button data-view="pos">🛒 Punto de venta</button>
         <button data-view="quotes">🧾 Cotizaciones</button>
+        <button data-view="customers">👤 Clientes</button>
       </div>
 
       <div class="nav-group">
@@ -67,6 +68,7 @@
       <div class="nav-group">
         <div class="nav-group-title">Administración</div>
         <button data-view="inventory">📊 Inventario</button>
+        <button data-view="suppliers" id="navSuppliers">🚚 Proveedores</button>
         <button data-view="users" id="navUsers">👥 Usuarios</button>
         <button data-view="settings" id="navSettings">⚙️ Configuración</button>
       </div>
@@ -267,6 +269,26 @@
       </div>
     </section>
 
+    <!-- CLIENTES -->
+    <section id="view-customers" class="hidden">
+      <div class="kpis" id="custKpis"></div>
+      <div class="panel">
+        <div class="row wrap" style="justify-content:space-between;margin-bottom:.8rem;gap:.5rem">
+          <input id="custSearch" placeholder="Buscar por nombre, correo o teléfono…" style="max-width:320px">
+          <button class="btn sm" id="btnRefreshCust">Actualizar</button>
+        </div>
+        <div style="overflow-x:auto">
+          <table class="table" id="custTable">
+            <thead>
+              <tr><th>Cliente</th><th>Contacto</th><th class="num">Pedidos</th><th class="num">Gastado</th><th class="num">Ticket</th><th>Última compra</th><th></th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <p class="small muted" id="custEmpty" hidden>Todavía no hay clientes con compras registradas.</p>
+      </div>
+    </section>
+
     <!-- CONFIGURACIÓN -->
     <section id="view-settings" class="hidden">
       <p class="small muted" style="margin:0 0 1rem">
@@ -394,6 +416,29 @@
       </div>
     </section>
 
+    <!-- PROVEEDORES -->
+    <section id="view-suppliers" class="hidden">
+      <div class="kpis" id="supKpis"></div>
+      <div class="grid-2">
+        <div class="panel">
+          <div class="row" style="justify-content:space-between;margin-bottom:.7rem">
+            <h3 style="margin:0">Proveedores</h3>
+            <button class="btn sm primary" id="btnNewSupplier">＋ Nuevo</button>
+          </div>
+          <div id="supplierList"></div>
+          <p class="small muted" id="supEmpty" hidden>Sin proveedores registrados.</p>
+        </div>
+        <div class="panel">
+          <div class="row" style="justify-content:space-between;margin-bottom:.7rem">
+            <h3 style="margin:0">Compras</h3>
+            <button class="btn sm primary" id="btnNewPurchase">＋ Registrar compra</button>
+          </div>
+          <div id="purchaseList"></div>
+          <p class="small muted" id="purEmpty" hidden>Sin compras registradas.</p>
+        </div>
+      </div>
+    </section>
+
     <!-- INVENTARIO -->
     <section id="view-inventory" class="hidden">
       <div class="kpis" id="invKpis"></div>
@@ -436,6 +481,6 @@
 <script src="vendor/zxing-library.min.js"></script>
 <script src="vendor/zxing-browser.min.js"></script>
 <script src="vendor/jsbarcode.min.js"></script>
-<script type="module" src="js/admin.js?v=aca9feeb"></script>
+<script type="module" src="js/admin.js?v=a7ecc135"></script>
 </body>
 </html>

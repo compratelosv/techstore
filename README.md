@@ -42,6 +42,12 @@ Son cuentas de sandbox con correo ya confirmado. **Las contraseñas no se guarda
 - **Usuarios y roles** (solo administrador): alta de miembros del equipo con contraseña temporal generada, cambio de rol, activación/desactivación de la cuenta (banea el login en Auth) y restablecimiento de contraseña. Tres roles: `admin` (todo), `operador` (pedidos, preparación, POS, ventas, inventario) y `cliente` (solo compra).
 - **Cotizaciones** (admin y operador): folio automático `COT-000001`, cliente, validez, descuento %, impuesto, notas; vista imprimible para enviar al cliente y conversión a pedido pendiente de pago con los precios cotizados.
 - **Configuración** (solo administrador): moneda (código, símbolo, decimales, formato regional), datos del negocio para documentos (razón social, NIT, teléfono, WhatsApp, dirección), impuesto y validez de cotizaciones, y **cuentas bancarias** donde se recibe el dinero.
+- **Clientes** (admin y operador): consolidado por cuenta con pedidos, gasto acumulado, ticket promedio, última compra y búsqueda por nombre/correo/teléfono. Ficha con historial completo, direcciones y **notas internas** del equipo.
+- **Proveedores y compras** (solo administrador, porque muestra costos): catálogo de proveedores con contacto y NIT; registro de compras **pendientes** que, al recibirlas, suman stock, dejan movimiento de inventario `entrada` y actualizan el costo del producto (base del margen).
+
+## Clientes y pedidos de mostrador
+
+Un pedido del POS **no pertenece a ninguna cuenta**: el cajero queda en `created_by`, no en `user_id`. Así el vendedor no aparece como cliente en su propio historial ni en el listado de clientes. El panel de Clientes solo muestra pedidos del canal `online` hechos por cuentas con rol `cliente`.
 
 ## Límite conocido de la moneda
 
