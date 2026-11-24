@@ -7,6 +7,7 @@ const state = {
   view: 'orders',
   orders: [],
   products: [],
+  categories: [],
   statusFilter: 'all',
   search: '',
   profile: null,
@@ -56,6 +57,7 @@ async function boot() {
   $('#sideWho').textContent = `${profile.email || user.email} · ${profile.role}`;
   await refreshAll();
   initPos({ sb, money, esc, toast, errMessage });
+  setView(viewFromHash()); // respeta admin.html#inventario
 }
 
 function showLogin() {
@@ -98,7 +100,21 @@ const TITLES = {
   inventory: ['Inventario', 'Stock, precios y movimientos'],
 };
 
-function setView(view) {
+// enlaces directos: admin.html#inventario, #pos, #preparacion, #pedidos
+const HASH_TO_VIEW = {
+  pedidos: 'orders', orders: 'orders',
+  preparacion: 'fulfillment', fulfillment: 'fulfillment',
+  pos: 'pos',
+  inventario: 'inventory', inventory: 'inventory',
+};
+const VIEW_TO_HASH = { orders: 'pedidos', fulfillment: 'preparacion', pos: 'pos', inventory: 'inventario' };
+
+function viewFromHash() {
+  const key = (location.hash || '').replace('#', '').trim().toLowerCase();
+  return HASH_TO_VIEW[key] || 'orders';
+}
+
+function setView(view, { syncHash = true } = {}) {
   state.view = view;
   $$('#sideNav button').forEach((b) => b.classList.toggle('active', b.dataset.view === view));
   ['orders', 'fulfillment', 'pos', 'inventory'].forEach((v) => {
@@ -106,18 +122,28 @@ function setView(view) {
   });
   $('#viewTitle').textContent = TITLES[view][0];
   $('#viewSub').textContent = TITLES[view][1];
+  if (syncHash && location.hash !== `#${VIEW_TO_HASH[view]}`) {
+    history.replaceState(null, '', `#${VIEW_TO_HASH[view]}`);
+  }
   if (view === 'orders') renderOrders();
   if (view === 'fulfillment') renderKanban();
   if (view === 'inventory') renderInventory();
   if (view === 'pos') renderPos();
 }
 
+window.addEventListener('hashchange', () => setView(viewFromHash(), { syncHash: false }));
+
 async function refreshAll() {
-  await Promise.all([loadOrders(), loadProducts()]);
+  await Promise.all([loadOrders(), loadProducts(), loadCategories()]);
   renderOrders();
   renderKanban();
   renderInventory();
   renderPos();
+}
+
+async function loadCategories() {
+  const { data } = await sb.from('ts_categories').select('*').order('sort_order');
+  state.categories = data || [];
 }
 
 $('#refreshBtn').addEventListener('click', async () => {
@@ -397,13 +423,19 @@ function renderInventory() {
         <td class="num">${money(p.price)}</td>
         <td class="num" style="color:${p.stock === 0 ? 'var(--bad)' : p.stock <= p.low_stock ? 'var(--warn)' : 'inherit'}">${p.stock}</td>
         <td><button class="btn sm" data-inv="${p.id}">Ajustar</button>
+            <button class="btn sm ghost" data-edit="${p.id}">Editar</button>
             <a class="btn sm ghost" href="product-label.html?sku=${encodeURIComponent(p.sku)}" target="_blank" rel="noopener">Etiqueta</a></td>
       </tr>`)
     .join('');
 
   $('#invTable').onclick = (e) => {
     const b = e.target.closest('[data-inv]');
-    if (b) openInventory(b.dataset.inv);
+    if (b) return openInventory(b.dataset.inv);
+    const ed = e.target.closest('[data-edit]');
+    if (ed) {
+      const p = state.products.find((x) => x.id === ed.dataset.edit);
+      if (p) openProductEditor(p);
+    }
   };
 }
 
@@ -460,6 +492,148 @@ async function openInventory(productId) {
     if (e.target.id === 'dClose2') closeDrawer();
   }, { once: true });
 }
+
+/* ---------------- alta y edición de productos ---------------- */
+function ean13(base12) {
+  let sum = 0;
+  for (let i = 0; i < 12; i += 1) sum += Number(base12[i]) * (i % 2 === 0 ? 1 : 3);
+  return base12 + String((10 - (sum % 10)) % 10);
+}
+
+function newBarcode() {
+  // prefijo 200 = uso interno; 9 dígitos del reloj para no repetir
+  return ean13(`200${String(Date.now()).slice(-9)}`);
+}
+
+function openProductEditor(p = null) {
+  const catOptions = state.categories
+    .map((c) => `<option value="${c.id}" ${p?.category_id === c.id ? 'selected' : ''}>${esc(c.name)}</option>`)
+    .join('');
+
+  openDrawer({
+    title: p ? p.sku : 'Nuevo producto',
+    subtitle: p ? 'Editar producto' : 'Alta de producto en el inventario',
+    body: `
+      <div class="panel">
+        <div class="field">
+          <label for="fSku">SKU / código interno *</label>
+          <input id="fSku" value="${esc(p?.sku || '')}" ${p ? 'readonly' : ''} placeholder="LAP-105">
+        </div>
+        <div class="field">
+          <label for="fName">Nombre *</label>
+          <input id="fName" value="${esc(p?.name || '')}" placeholder="NovaBook Air 15">
+        </div>
+        <div class="field">
+          <label for="fBrand">Marca</label>
+          <input id="fBrand" value="${esc(p?.brand || '')}">
+        </div>
+        <div class="field">
+          <label for="fCat">Categoría</label>
+          <select id="fCat"><option value="">— sin categoría —</option>${catOptions}</select>
+        </div>
+        <div class="row" style="gap:.6rem">
+          <div class="field" style="flex:1">
+            <label for="fPrice">Precio venta *</label>
+            <input id="fPrice" type="number" step="0.01" min="0" value="${p ? Number(p.price) : ''}" placeholder="849.00">
+          </div>
+          <div class="field" style="flex:1">
+            <label for="fCost">Costo</label>
+            <input id="fCost" type="number" step="0.01" min="0" value="${p?.cost ?? ''}">
+          </div>
+        </div>
+        <div class="row" style="gap:.6rem">
+          <div class="field" style="flex:1">
+            <label for="fStock">Stock</label>
+            <input id="fStock" type="number" step="1" min="0" value="${p ? p.stock : 0}">
+          </div>
+          <div class="field" style="flex:1">
+            <label for="fLow">Alerta stock bajo</label>
+            <input id="fLow" type="number" step="1" min="0" value="${p ? p.low_stock : 3}">
+          </div>
+        </div>
+        <div class="field">
+          <label for="fBarcode">Código de barras (EAN-13)</label>
+          <div class="row">
+            <input id="fBarcode" value="${esc(p?.barcode || '')}" placeholder="se genera si lo dejas vacío">
+            <button class="btn sm" id="fGen" type="button">Generar</button>
+          </div>
+        </div>
+        <div class="field">
+          <label for="fDesc">Descripción</label>
+          <textarea id="fDesc" rows="3">${esc(p?.description || '')}</textarea>
+        </div>
+        <label class="row" style="gap:.5rem;align-items:center;font-size:.86rem">
+          <input type="checkbox" id="fActive" ${!p || p.active ? 'checked' : ''} style="width:auto">
+          Visible en la tienda
+        </label>
+      </div>`,
+    foot: `<button class="btn primary" id="fSave">Guardar producto</button>
+           <button class="btn ghost" id="fCancel">Cancelar</button>`,
+  });
+
+  document.getElementById('fGen').onclick = () => {
+    document.getElementById('fBarcode').value = newBarcode();
+  };
+  document.getElementById('fCancel').onclick = closeDrawer;
+
+  document.getElementById('fSave').onclick = async (e) => {
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    btn.textContent = 'Guardando…';
+
+    const payload = {
+      sku: document.getElementById('fSku').value.trim().toUpperCase(),
+      name: document.getElementById('fName').value.trim(),
+      brand: document.getElementById('fBrand').value.trim() || null,
+      category_id: document.getElementById('fCat').value || null,
+      price: Number(document.getElementById('fPrice').value),
+      cost: document.getElementById('fCost').value === '' ? null : Number(document.getElementById('fCost').value),
+      stock: Number(document.getElementById('fStock').value || 0),
+      low_stock: Number(document.getElementById('fLow').value || 0),
+      barcode: document.getElementById('fBarcode').value.trim() || newBarcode(),
+      description: document.getElementById('fDesc').value.trim() || null,
+      active: document.getElementById('fActive').checked,
+    };
+
+    if (!payload.sku || !payload.name) {
+      toast('SKU y nombre son obligatorios', 'err');
+      btn.disabled = false;
+      btn.textContent = 'Guardar producto';
+      return;
+    }
+    if (!Number.isFinite(payload.price) || payload.price < 0) {
+      toast('Precio inválido', 'err');
+      btn.disabled = false;
+      btn.textContent = 'Guardar producto';
+      return;
+    }
+    if (!/^\d{13}$/.test(payload.barcode)) {
+      toast('El código de barras debe tener 13 dígitos (usa Generar)', 'err');
+      btn.disabled = false;
+      btn.textContent = 'Guardar producto';
+      return;
+    }
+
+    const { error } = p
+      ? await sb.from('ts_products').update(payload).eq('id', p.id)
+      : await sb.from('ts_products').insert(payload);
+
+    if (error) {
+      toast(errMessage(error), 'err');
+      btn.disabled = false;
+      btn.textContent = 'Guardar producto';
+      return;
+    }
+
+    toast(p ? 'Producto actualizado' : 'Producto agregado al inventario');
+    closeDrawer();
+    await loadProducts();
+    renderInventory();
+    renderPos();
+  };
+}
+
+$('#btnNewProduct').addEventListener('click', () => openProductEditor(null));
 
 /* ---------------- POS (delegado) ---------------- */
 function renderPos() {
