@@ -9,10 +9,42 @@ export const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, 
 });
 
 /* ---------- utilidades ---------- */
-export const money = (v) =>
-  v === null || v === undefined || v === ''
-    ? '—'
-    : `$${Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+/* ---------- moneda ---------- */
+// Configuración viva de la moneda; se carga de ts_settings al arrancar.
+let CUR = { code: 'USD', symbol: '$', decimals: 2, locale: 'en-US' };
+
+export function getCurrency() {
+  return { ...CUR };
+}
+
+export function setCurrency(cfg) {
+  if (cfg && typeof cfg === 'object') CUR = { ...CUR, ...cfg };
+  return CUR;
+}
+
+/** Lee la moneda configurada por el administrador (lectura pública). */
+export async function loadCurrency() {
+  try {
+    const { data } = await sb.from('ts_settings').select('value').eq('key', 'currency').maybeSingle();
+    if (data?.value) setCurrency(data.value);
+  } catch { /* se queda con la moneda por defecto */ }
+  return CUR;
+}
+
+export const money = (v) => {
+  if (v === null || v === undefined || v === '') return '—';
+  const n = Number(v);
+  let formatted;
+  try {
+    formatted = n.toLocaleString(CUR.locale || 'en-US', {
+      minimumFractionDigits: CUR.decimals ?? 2,
+      maximumFractionDigits: CUR.decimals ?? 2,
+    });
+  } catch {
+    formatted = n.toFixed(CUR.decimals ?? 2);
+  }
+  return `${CUR.symbol || ''}${formatted}`;
+};
 
 export const esc = (s) =>
   String(s ?? '').replace(/[&<>"']/g, (c) =>
@@ -76,13 +108,15 @@ export async function mountHeader({ active = '' } = {}) {
   const el = document.querySelector('[data-header]');
   if (!el) return;
   const user = await getUser();
+  await loadCurrency();
+  const business = await loadBusinessName();
   const count = Number(localStorage.getItem('ts.cart.count') || 0);
 
   el.innerHTML = `
     <div class="header-inner">
       <a class="brand" href="index.html">
         <span class="brand-mark">TS</span>
-        <span>${esc(window.TS_CONFIG.STORE_NAME)}</span>
+        <span>${esc(business || window.TS_CONFIG.STORE_NAME)}</span>
       </a>
       <nav class="main-nav">
         <a href="index.html" class="${active === 'home' ? 'active' : ''}">Tienda</a>
@@ -94,6 +128,15 @@ export async function mountHeader({ active = '' } = {}) {
         <span>Carrito</span><b data-cart-count>${count || ''}</b>
       </a>
     </div>`;
+}
+
+async function loadBusinessName() {
+  try {
+    const { data } = await sb.from('ts_settings').select('value').eq('key', 'business').maybeSingle();
+    return data?.value?.name || null;
+  } catch {
+    return null;
+  }
 }
 
 export function setCartCount(n) {

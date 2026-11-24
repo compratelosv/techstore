@@ -32,22 +32,43 @@ h3{font-size:.98rem}
 }
 
 /* ---------- layout ---------- */
-.shell{display:grid;grid-template-columns:224px 1fr;min-height:100vh}
-.side{background:var(--bg-2);border-right:1px solid var(--line);padding:1rem .8rem;display:flex;flex-direction:column;gap:.3rem;position:sticky;top:0;height:100vh}
-.side .brandline{font-size:.95rem;margin-bottom:1rem}
-.side-nav{display:flex;flex-direction:column;gap:.2rem}
+.adminbar{
+  position:sticky;top:0;z-index:70;display:flex;align-items:center;gap:1rem;
+  padding:.55rem 1.1rem;background:var(--bg-2);border-bottom:1px solid var(--line);
+}
+.adminbar-title h1{font-size:1.02rem;margin:0}
+.adminbar-title .who{font-size:.74rem;color:var(--muted)}
+.adminbar-actions{margin-left:auto;display:flex;align-items:center;gap:.45rem}
+.user-chip{display:flex;align-items:center;gap:.5rem;padding-left:.6rem;border-left:1px solid var(--line)}
+.user-mail{font-size:.74rem;color:var(--muted);max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.menu-btn{
+  display:none;background:var(--bg-3);border:1px solid var(--line);color:var(--txt);
+  width:38px;height:38px;border-radius:9px;font-size:1.1rem;cursor:pointer
+}
+.side-scrim{display:none}
+
+.shell{display:grid;grid-template-columns:232px 1fr;align-items:start}
+.side{
+  background:var(--bg-2);border-right:1px solid var(--line);padding:1rem .7rem;
+  display:flex;flex-direction:column;position:sticky;top:57px;height:calc(100vh - 57px);overflow-y:auto
+}
+.side .brandline{font-size:.95rem;margin:0 .3rem 1rem}
+.side-nav{display:flex;flex-direction:column;gap:.15rem}
+.nav-group{margin-bottom:.85rem}
+.nav-group-title{
+  font-size:.66rem;letter-spacing:.13em;text-transform:uppercase;color:var(--muted);
+  font-weight:800;padding:.25rem .75rem .35rem;opacity:.75
+}
 .side-nav button{
   text-align:left;background:none;border:0;color:var(--muted);font:inherit;font-weight:600;
-  padding:.6rem .75rem;border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:.6rem
+  padding:.55rem .75rem;border-radius:9px;cursor:pointer;display:flex;align-items:center;gap:.6rem;font-size:.88rem
 }
 .side-nav button.active{background:var(--bg-3);color:var(--txt)}
 .side-nav button:hover{color:var(--txt)}
-.side-foot{margin-top:auto;font-size:.78rem;color:var(--muted)}
-.side-foot button{background:none;border:0;color:var(--bad);font:inherit;cursor:pointer;padding:0}
+.side-foot{margin-top:auto;font-size:.72rem;color:var(--muted);padding:.6rem .75rem 0;border-top:1px solid var(--line)}
+.side-foot button{background:none;border:0;color:var(--bad);font:inherit;cursor:pointer;padding:0;margin-top:.3rem}
 
-.main{padding:1.4rem 1.6rem 3rem;max-width:1280px;width:100%}
-.topbar{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:1.4rem;flex-wrap:wrap}
-.topbar .who{font-size:.82rem;color:var(--muted)}
+.main{padding:1.3rem 1.5rem 3rem;max-width:1280px;width:100%}
 
 /* ---------- componentes ---------- */
 .btn{
@@ -176,11 +197,20 @@ h3{font-size:.98rem}
 
 @media (max-width:900px){
   .shell{grid-template-columns:1fr}
-  .side{position:static;height:auto;flex-direction:row;align-items:center;overflow-x:auto;gap:.5rem}
-  .side .brandline{display:none}
-  .side-nav{flex-direction:row}
+  .menu-btn{display:inline-flex}
+  .side{
+    position:fixed;top:0;left:0;bottom:0;width:264px;height:100vh;z-index:95;
+    transform:translateX(-100%);transition:transform .2s;flex-direction:column;overflow-y:auto
+  }
+  .side.open{transform:none}
+  .side-scrim.show{display:block;position:fixed;inset:0;background:#000b;z-index:90}
+  .side .brandline{display:flex}
+  .side-nav{flex-direction:column}
   .side-nav button{white-space:nowrap}
-  .side-foot{display:none}
+  .side-foot{display:block}
+  .adminbar-title .who{display:none}
+  .user-mail{display:none}
+  .adminbar-actions .btn.ghost{display:none}
   .main{padding:1rem}
   .grid-2,.pos-grid{grid-template-columns:1fr}
 }

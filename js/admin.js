@@ -1,5 +1,5 @@
 /* admin.js — shell del panel: pedidos, preparación e inventario */
-import { sb, money, esc, toast, fmtDate, errMessage, STATUS_LABEL, getUser } from './core.js?v=061ee464';
+import { sb, money, esc, toast, fmtDate, errMessage, STATUS_LABEL, getUser, loadCurrency, getCurrency } from './core.js?v=18c48370';
 import { initPos, scanOnce } from './pos.js?v=90cba46c';
 import { Scanner } from './scanner.js?v=90ef2e67';
 
@@ -14,6 +14,10 @@ const state = {
   profile: null,
   salesDays: 30,
   salesData: null,
+  settings: null,
+  quotes: [],
+  quoteFilter: 'all',
+  banks: [],
 };
 
 const $ = (s) => document.querySelector(s);
@@ -57,17 +61,23 @@ async function boot() {
   state.profile = profile;
   $('#loginWrap').classList.add('hidden');
   $('#appShell').classList.remove('hidden');
-  $('#sideWho').textContent = `${profile.email || user.email} · ${profile.role}`;
+  $('#adminBar').classList.remove('hidden');
+  await loadCurrency();
+  $('#sideWho').textContent = `${profile.email || user.email}`;
   // versión del código cargado: sirve para diagnosticar cachés viejas
   const own = Array.from(document.scripts).find((s) => s.src.includes('js/admin.js'));
   const ver = own ? new URL(own.src).searchParams.get('v') : 'dev';
-  $('#sideWho').textContent += ` · v${ver}`;
+  $('#sideFoot').innerHTML = `
+    <div>${esc(profile.full_name || '')} · <b>${esc(profile.role)}</b></div>
+    <div>v${ver}</div>`;
   window.__tsReady = true;
 
   // La sección de usuarios es solo para el administrador.
   const isAdmin = profile.role === 'admin';
   $('#navUsers').classList.toggle('hidden', !isAdmin);
+  $('#navSettings').classList.toggle('hidden', !isAdmin);
 
+  await loadSettings();
   await refreshAll();
   initPos({ sb, money, esc, toast, errMessage });
   const target = viewFromHash();
@@ -77,7 +87,19 @@ async function boot() {
 function showLogin() {
   $('#loginWrap').classList.remove('hidden');
   $('#appShell').classList.add('hidden');
+  $('#adminBar').classList.add('hidden');
 }
+
+/* menú lateral en móvil */
+function closeMobileMenu() {
+  $('#sideBar').classList.remove('open');
+  $('#sideScrim').classList.remove('show');
+}
+$('#btnMenu').addEventListener('click', () => {
+  $('#sideBar').classList.toggle('open');
+  $('#sideScrim').classList.toggle('show');
+});
+$('#sideScrim').addEventListener('click', closeMobileMenu);
 
 $('#loginForm').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -112,22 +134,26 @@ const TITLES = {
   fulfillment: ['Preparación', 'Lo que hay que embalar y entregar, por etapa'],
   pos: ['Punto de venta', 'Venta presencial: descuenta inventario al cobrar'],
   sales: ['Ventas', 'Ingresos, ticket promedio, margen y productos más vendidos'],
+  quotes: ['Cotizaciones', 'Propuestas de precio para clientes, listas para enviar'],
   users: ['Usuarios', 'Quién entra al panel y con qué rol'],
+  settings: ['Configuración', 'Moneda, datos del negocio, impuestos y cuentas bancarias'],
   inventory: ['Inventario', 'Stock, precios y movimientos'],
 };
 
-// enlaces directos: admin.html#inventario, #pos, #preparacion, #pedidos, #ventas, #usuarios
+// enlaces directos: admin.html#pedidos, #preparacion, #pos, #cotizaciones, #ventas, #usuarios, #configuracion, #inventario
 const HASH_TO_VIEW = {
   pedidos: 'orders', orders: 'orders',
   preparacion: 'fulfillment', fulfillment: 'fulfillment',
   pos: 'pos',
+  cotizaciones: 'quotes', quotes: 'quotes',
   ventas: 'sales', sales: 'sales',
   usuarios: 'users', users: 'users',
+  configuracion: 'settings', settings: 'settings',
   inventario: 'inventory', inventory: 'inventory',
 };
 const VIEW_TO_HASH = {
-  orders: 'pedidos', fulfillment: 'preparacion', pos: 'pos',
-  sales: 'ventas', users: 'usuarios', inventory: 'inventario',
+  orders: 'pedidos', fulfillment: 'preparacion', pos: 'pos', quotes: 'cotizaciones',
+  sales: 'ventas', users: 'usuarios', settings: 'configuracion', inventory: 'inventario',
 };
 
 function viewFromHash() {
@@ -138,7 +164,7 @@ function viewFromHash() {
 function setView(view, { syncHash = true } = {}) {
   state.view = view;
   $$('#sideNav button').forEach((b) => b.classList.toggle('active', b.dataset.view === view));
-  ['orders', 'fulfillment', 'pos', 'sales', 'users', 'inventory'].forEach((v) => {
+  ['orders', 'fulfillment', 'pos', 'quotes', 'sales', 'users', 'settings', 'inventory'].forEach((v) => {
     $(`#view-${v}`).classList.toggle('hidden', v !== view);
   });
   $('#viewTitle').textContent = TITLES[view][0];
@@ -146,12 +172,15 @@ function setView(view, { syncHash = true } = {}) {
   if (syncHash && location.hash !== `#${VIEW_TO_HASH[view]}`) {
     history.replaceState(null, '', `#${VIEW_TO_HASH[view]}`);
   }
+  closeMobileMenu();
   if (view === 'orders') renderOrders();
   if (view === 'fulfillment') renderKanban();
   if (view === 'inventory') renderInventory();
   if (view === 'pos') renderPos();
   if (view === 'sales') renderSales();
+  if (view === 'quotes') renderQuotes();
   if (view === 'users') renderUsers();
+  if (view === 'settings') renderSettings();
 }
 
 window.addEventListener('hashchange', () => setView(viewFromHash(), { syncHash: false }));
@@ -515,6 +544,464 @@ async function openInventory(productId) {
     if (e.target.id === 'dClose2') closeDrawer();
   }, { once: true });
 }
+
+/* ---------------- configuración y ajustes ---------------- */
+async function loadSettings() {
+  const { data } = await sb.from('ts_settings').select('key, value');
+  const map = {};
+  (data || []).forEach((r) => { map[r.key] = r.value; });
+  state.settings = map;
+  return map;
+}
+
+const CURRENCY_PRESETS = {
+  USD: { symbol: '$', decimals: 2, locale: 'en-US' },
+  EUR: { symbol: '€', decimals: 2, locale: 'es-ES' },
+  MXN: { symbol: '$', decimals: 2, locale: 'es-MX' },
+  GTQ: { symbol: 'Q', decimals: 2, locale: 'es-MX' },
+  HNL: { symbol: 'L', decimals: 2, locale: 'es-MX' },
+  CRC: { symbol: '₡', decimals: 0, locale: 'es-MX' },
+  COP: { symbol: '$', decimals: 0, locale: 'es-MX' },
+};
+
+function previewMoney(cfg) {
+  const sample = 1234.56;
+  try {
+    return `${cfg.symbol || ''}${sample.toLocaleString(cfg.locale || 'en-US', {
+      minimumFractionDigits: cfg.decimals ?? 2,
+      maximumFractionDigits: cfg.decimals ?? 2,
+    })}`;
+  } catch {
+    return `${cfg.symbol || ''}${sample.toFixed(cfg.decimals ?? 2)}`;
+  }
+}
+
+async function renderSettings() {
+  if (state.profile?.role !== 'admin') {
+    toast('Solo el administrador puede ver la configuración', 'err');
+    return setView('orders');
+  }
+  const s = state.settings || (await loadSettings());
+  const cur = { ...CURRENCY_PRESETS.USD, ...(s.currency || {}) };
+  const biz = s.business || {};
+  const sales = s.sales || {};
+
+  $('#curCode').value = cur.code || 'USD';
+  $('#curSymbol').value = cur.symbol || '$';
+  $('#curDecimals').value = String(cur.decimals ?? 2);
+  $('#curLocale').value = cur.locale || 'en-US';
+  $('#curPreview').textContent = `Vista previa: ${previewMoney(cur)}`;
+
+  $('#bizName').value = biz.name || '';
+  $('#bizLegal').value = biz.legal_name || '';
+  $('#bizNit').value = biz.nit || '';
+  $('#bizPhone').value = biz.phone || '';
+  $('#bizWhatsapp').value = biz.whatsapp || '';
+  $('#bizEmail').value = biz.email || '';
+  $('#bizAddress').value = biz.address || '';
+
+  $('#taxRate').value = sales.tax_rate ?? 0;
+  $('#taxIncluded').value = String(sales.tax_included ?? true);
+  $('#qPrefix').value = sales.quote_prefix || 'COT';
+  $('#qDays').value = sales.quote_valid_days ?? 15;
+  $('#lowStock').value = sales.low_stock_default ?? 3;
+
+  const { data: banks } = await sb.from('ts_bank_accounts').select('*').order('created_at');
+  state.banks = banks || [];
+  $('#bankList').innerHTML = state.banks.length
+    ? state.banks
+        .map(
+          (b) => `<div class="line" style="grid-template-columns:1fr auto;padding:.6rem 0">
+            <div>
+              <div class="tl-name">${esc(b.bank)} · ${esc(b.account_type)}</div>
+              <div class="tl-sub">${esc(b.account_number)} · ${esc(b.holder)} · ${esc(b.currency)}</div>
+            </div>
+            <div class="row" style="gap:.35rem">
+              <button class="btn sm ${b.active ? '' : 'ghost'}" data-bank-toggle="${b.id}" data-active="${b.active}">
+                ${b.active ? 'Activa' : 'Inactiva'}
+              </button>
+              <button class="btn sm danger" data-bank-del="${b.id}">Eliminar</button>
+            </div>
+          </div>`
+        )
+        .join('')
+    : '<p class="small muted">Sin cuentas registradas.</p>';
+}
+
+$('#curCode').addEventListener('change', () => {
+  const p = CURRENCY_PRESETS[$('#curCode').value] || CURRENCY_PRESETS.USD;
+  $('#curSymbol').value = p.symbol;
+  $('#curDecimals').value = String(p.decimals);
+  $('#curLocale').value = p.locale;
+  $('#curPreview').textContent = `Vista previa: ${previewMoney({ ...p, code: $('#curCode').value })}`;
+});
+
+['#curSymbol', '#curDecimals', '#curLocale'].forEach((sel) => {
+  $(sel).addEventListener('change', () => {
+    $('#curPreview').textContent = `Vista previa: ${previewMoney({
+      symbol: $('#curSymbol').value,
+      decimals: Number($('#curDecimals').value),
+      locale: $('#curLocale').value,
+    })}`;
+  });
+});
+
+$('#formCurrency').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const value = {
+    code: $('#curCode').value,
+    symbol: $('#curSymbol').value || '$',
+    decimals: Number($('#curDecimals').value),
+    locale: $('#curLocale').value,
+  };
+  const { error } = await sb.rpc('ts_save_setting', { p_key: 'currency', p_value: value });
+  if (error) return toast(errMessage(error), 'err');
+  await loadCurrency();
+  await loadSettings();
+  toast('Moneda actualizada');
+  renderSettings();
+  renderOrders();
+  renderInventory();
+  renderSales();
+});
+
+$('#formBusiness').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const value = {
+    name: $('#bizName').value.trim(),
+    legal_name: $('#bizLegal').value.trim(),
+    nit: $('#bizNit').value.trim(),
+    phone: $('#bizPhone').value.trim(),
+    whatsapp: $('#bizWhatsapp').value.trim(),
+    email: $('#bizEmail').value.trim(),
+    address: $('#bizAddress').value.trim(),
+  };
+  const { error } = await sb.rpc('ts_save_setting', { p_key: 'business', p_value: value });
+  if (error) return toast(errMessage(error), 'err');
+  await loadSettings();
+  toast('Datos del negocio guardados');
+});
+
+$('#formSales').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const value = {
+    tax_rate: Number($('#taxRate').value || 0),
+    tax_included: $('#taxIncluded').value === 'true',
+    quote_prefix: ($('#qPrefix').value || 'COT').toUpperCase(),
+    quote_valid_days: Number($('#qDays').value || 15),
+    low_stock_default: Number($('#lowStock').value || 3),
+  };
+  const { error } = await sb.rpc('ts_save_setting', { p_key: 'sales', p_value: value });
+  if (error) return toast(errMessage(error), 'err');
+  await loadSettings();
+  toast('Ajustes de ventas guardados');
+});
+
+$('#btnNewBank').addEventListener('click', () => {
+  openDrawer({
+    title: 'Nueva cuenta bancaria',
+    subtitle: 'Donde se recibe el dinero de las ventas',
+    body: `
+      <div class="panel">
+        <div class="field"><label for="bkBank">Banco *</label><input id="bkBank" placeholder="Banco Agrícola"></div>
+        <div class="row" style="gap:.6rem">
+          <div class="field" style="flex:1"><label for="bkType">Tipo</label>
+            <select id="bkType"><option>ahorros</option><option>corriente</option><option>cuenta simple</option></select>
+          </div>
+          <div class="field" style="flex:1"><label for="bkCur">Moneda</label>
+            <select id="bkCur"><option>USD</option><option>EUR</option><option>MXN</option></select>
+          </div>
+        </div>
+        <div class="field"><label for="bkNumber">Número de cuenta *</label><input id="bkNumber" inputmode="numeric"></div>
+        <div class="field"><label for="bkHolder">Titular *</label><input id="bkHolder"></div>
+        <div class="field"><label for="bkNotes">Instrucciones para el cliente</label>
+          <textarea id="bkNotes" rows="2" placeholder="Transferencia o depósito a esta cuenta"></textarea>
+        </div>
+      </div>`,
+    foot: `<button class="btn primary" id="bkSave">Guardar cuenta</button>
+           <button class="btn ghost" id="bkCancel">Cancelar</button>`,
+  });
+  $('#bkCancel').onclick = closeDrawer;
+  $('#bkSave').onclick = async (e) => {
+    const btn = e.currentTarget;
+    const payload = {
+      bank: $('#bkBank').value.trim(),
+      account_type: $('#bkType').value,
+      currency: $('#bkCur').value,
+      account_number: $('#bkNumber').value.trim(),
+      holder: $('#bkHolder').value.trim(),
+      instructions: $('#bkNotes').value.trim() || null,
+    };
+    if (!payload.bank || !payload.account_number || !payload.holder) {
+      return toast('Banco, número y titular son obligatorios', 'err');
+    }
+    btn.disabled = true;
+    const { error } = await sb.from('ts_bank_accounts').insert(payload);
+    btn.disabled = false;
+    if (error) return toast(errMessage(error), 'err');
+    toast('Cuenta agregada');
+    closeDrawer();
+    renderSettings();
+  };
+});
+
+$('#bankList').addEventListener('click', async (e) => {
+  const tog = e.target.closest('[data-bank-toggle]');
+  const del = e.target.closest('[data-bank-del]');
+  if (tog) {
+    const activar = tog.dataset.active === 'false';
+    const { error } = await sb.from('ts_bank_accounts').update({ active: activar }).eq('id', tog.dataset.bankToggle);
+    if (error) return toast(errMessage(error), 'err');
+    renderSettings();
+  }
+  if (del) {
+    if (!confirm('¿Eliminar esta cuenta bancaria?')) return;
+    const { error } = await sb.from('ts_bank_accounts').delete().eq('id', del.dataset.bankDel);
+    if (error) return toast(errMessage(error), 'err');
+    toast('Cuenta eliminada');
+    renderSettings();
+  }
+});
+
+/* ---------------- cotizaciones ---------------- */
+const QSTATUS_LABEL = {
+  borrador: 'Borrador', enviada: 'Enviada', aceptada: 'Aceptada',
+  rechazada: 'Rechazada', vencida: 'Vencida', convertida: 'Convertida',
+};
+
+let quoteCart = [];
+
+async function renderQuotes() {
+  const tbody = $('#quotesTable').querySelector('tbody');
+  tbody.innerHTML = '<tr><td colspan="6" class="small muted">Cargando…</td></tr>';
+
+  const { data, error } = await sb
+    .from('ts_quotes')
+    .select('*, ts_quote_items(qty)')
+    .order('created_at', { ascending: false })
+    .limit(100);
+  if (error) {
+    tbody.innerHTML = '';
+    return toast(errMessage(error), 'err');
+  }
+  state.quotes = data || [];
+
+  const filter = state.quoteFilter || 'all';
+  const rows = state.quotes.filter((q) => filter === 'all' || q.status === filter);
+
+  tbody.innerHTML = rows
+    .map((q) => {
+      const items = (q.ts_quote_items || []).reduce((n, i) => n + i.qty, 0);
+      return `<tr>
+        <td class="mono">${esc(q.code)}</td>
+        <td>${esc(q.customer_name)}<div class="small muted">${esc(q.customer_phone || '')}</div></td>
+        <td class="small">${q.valid_until || '—'}</td>
+        <td class="num">${money(q.total)}</td>
+        <td><span class="badge ${q.status === 'convertida' ? 'entregado' : q.status === 'aceptada' ? 'pagado' : 'pendiente_pago'}">${QSTATUS_LABEL[q.status] || q.status}</span></td>
+        <td class="row" style="gap:.3rem">
+          <button class="btn sm" data-q-print="${q.id}">Imprimir</button>
+          ${q.status === 'convertida'
+            ? ''
+            : `<button class="btn sm primary" data-q-convert="${q.id}">A pedido</button>
+               <button class="btn sm ghost" data-q-edit="${q.id}">Editar</button>`}
+        </td>
+      </tr>`;
+    })
+    .join('');
+  $('#quotesEmpty').hidden = rows.length > 0;
+}
+
+$('#quoteTabs').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-qstatus]');
+  if (!b) return;
+  state.quoteFilter = b.dataset.qstatus;
+  $$('#quoteTabs .tab-btn').forEach((x) => x.classList.toggle('active', x === b));
+  renderQuotes();
+});
+
+$('#quotesTable').addEventListener('click', async (e) => {
+  const print = e.target.closest('[data-q-print]');
+  const conv = e.target.closest('[data-q-convert]');
+  const edit = e.target.closest('[data-q-edit]');
+
+  if (print) window.open(`cotizacion.html?id=${print.dataset.qPrint}`, '_blank');
+  if (edit) return openQuoteEditor(edit.dataset.qEdit);
+  if (conv) {
+    const q = state.quotes.find((x) => x.id === conv.dataset.qConvert);
+    if (!confirm(`Convertir ${q?.code} en pedido? Se creará un pedido pendiente de pago.`)) return;
+    const { data: order, error } = await sb.rpc('ts_quote_convert', { p_quote_id: conv.dataset.qConvert });
+    if (error) return toast(errMessage(error), 'err');
+    toast(`Pedido ${order.code} creado desde ${q?.code}`);
+    await loadOrders();
+    renderQuotes();
+    renderOrders();
+  }
+});
+
+async function openQuoteEditor(quoteId = null) {
+  const saleSettings = (state.settings || (await loadSettings())).sales || {};
+  quoteCart = [];
+
+  let quote = null;
+  if (quoteId) {
+    const [{ data: q }, { data: items }] = await Promise.all([
+      sb.from('ts_quotes').select('*').eq('id', quoteId).maybeSingle(),
+      sb.from('ts_quote_items').select('*').eq('quote_id', quoteId),
+    ]);
+    quote = q;
+    quoteCart = (items || []).map((i) => ({
+      id: i.product_id, sku: i.sku, name: i.name, price: Number(i.unit_price), qty: i.qty,
+    }));
+  }
+
+  const products = state.products;
+  openDrawer({
+    title: quote ? quote.code : 'Nueva cotización',
+    subtitle: quote ? 'Editar cotización' : 'Propuesta de precio para el cliente',
+    body: `
+      <div class="panel" style="margin-bottom:.8rem">
+        <div class="field"><label for="qName">Cliente *</label><input id="qName" value="${esc(quote?.customer_name || '')}"></div>
+        <div class="row" style="gap:.6rem">
+          <div class="field" style="flex:1"><label for="qPhone">Teléfono</label><input id="qPhone" value="${esc(quote?.customer_phone || '')}"></div>
+          <div class="field" style="flex:1"><label for="qEmail">Correo</label><input id="qEmail" value="${esc(quote?.customer_email || '')}"></div>
+        </div>
+        <div class="field"><label for="qAddr">Dirección</label><input id="qAddr" value="${esc(quote?.customer_address || '')}"></div>
+        <div class="row" style="gap:.6rem">
+          <div class="field" style="flex:1"><label for="qDiscount">Descuento %</label>
+            <input id="qDiscount" type="number" min="0" max="100" step="0.5" value="${quote?.discount ?? 0}">
+          </div>
+          <div class="field" style="flex:1"><label for="qDays">Validez (días)</label>
+            <input id="qDays" type="number" min="1" max="120" value="${saleSettings.quote_valid_days || 15}">
+          </div>
+        </div>
+        <div class="field"><label for="qNotes">Notas / condiciones</label>
+          <textarea id="qNotes" rows="2">${esc(quote?.notes || '')}</textarea>
+        </div>
+      </div>
+
+      <div class="panel" style="margin-bottom:.8rem">
+        <h3>Productos</h3>
+        <div class="field"><input id="qSearch" placeholder="Buscar producto o escanear…"></div>
+        <div class="pos-products" id="qProducts" style="max-height:220px"></div>
+      </div>
+
+      <div class="panel">
+        <h3>Líneas</h3>
+        <div id="qLines"></div>
+        <p class="small muted" id="qLinesEmpty">Aún no hay productos.</p>
+        <div class="pos-total"><span>Total</span><span id="qTotal">$0.00</span></div>
+        <div class="small muted" id="qTaxLine"></div>
+      </div>`,
+    foot: `<button class="btn primary" id="qSave">Guardar cotización</button>
+           <button class="btn ghost" id="qCancel">Cancelar</button>`,
+  });
+
+  const drawProducts = () => {
+    const term = ($('#qSearch').value || '').toLowerCase();
+    $('#qProducts').innerHTML = products
+      .filter((p) => !term || p.name.toLowerCase().includes(term) || p.sku.toLowerCase().includes(term))
+      .slice(0, 40)
+      .map((p) => `<button class="pos-tile" data-q-add="${p.id}">
+        <div class="n">${esc(p.name)}</div><div class="p">${money(p.price)}</div>
+        <div class="s">${esc(p.sku)}</div></button>`)
+      .join('');
+  };
+
+  const drawLines = () => {
+    $('#qLines').innerHTML = quoteCart
+      .map((i, idx) => `<div class="ticket-line">
+        <div><div class="tl-name">${esc(i.name)}</div><div class="tl-sub">${esc(i.sku)} · ${money(i.price)}</div></div>
+        <div class="tl-right">
+          <div class="qty-box">
+            <button data-q-dec="${idx}">−</button><span>${i.qty}</span><button data-q-inc="${idx}">+</button>
+          </div>
+          <div class="amount">${money(i.price * i.qty)}</div>
+          <button class="btn ghost sm" data-q-del="${idx}">✕</button>
+        </div>
+      </div>`)
+      .join('');
+    $('#qLinesEmpty').hidden = quoteCart.length > 0;
+
+    const subtotal = quoteCart.reduce((n, i) => n + i.price * i.qty, 0);
+    const disc = Number($('#qDiscount').value || 0);
+    const base = subtotal * (1 - disc / 100);
+    const rate = Number(saleSettings.tax_rate || 0);
+    const included = saleSettings.tax_included !== false;
+    const tax = rate > 0 ? (included ? base - base / (1 + rate / 100) : base * rate / 100) : 0;
+    const total = rate > 0 && !included ? base + tax : base;
+    $('#qTotal').textContent = money(total);
+    $('#qTaxLine').textContent = rate > 0
+      ? `Subtotal ${money(subtotal)} · descuento ${disc}% · impuesto ${rate}% ${included ? '(incluido)' : '(sumado)'}: ${money(tax)}`
+      : `Subtotal ${money(subtotal)} · descuento ${disc}%`;
+  };
+
+  $('#qSearch').addEventListener('input', drawProducts);
+  $('#qDiscount').addEventListener('input', drawLines);
+
+  $('#qProducts').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-q-add]');
+    if (!b) return;
+    const p = products.find((x) => x.id === b.dataset.qAdd);
+    const found = quoteCart.find((i) => i.id === p.id);
+    if (found) found.qty += 1;
+    else quoteCart.push({ id: p.id, sku: p.sku, name: p.name, price: Number(p.price), qty: 1 });
+    drawLines();
+  });
+
+  $('#qLines').addEventListener('click', (e) => {
+    const inc = e.target.closest('[data-q-inc]');
+    const dec = e.target.closest('[data-q-dec]');
+    const del = e.target.closest('[data-q-del]');
+    if (inc) quoteCart[Number(inc.dataset.qInc)].qty += 1;
+    else if (dec) {
+      const i = Number(dec.dataset.qDec);
+      quoteCart[i].qty -= 1;
+      if (quoteCart[i].qty <= 0) quoteCart.splice(i, 1);
+    } else if (del) quoteCart.splice(Number(del.dataset.qDel), 1);
+    else return;
+    drawLines();
+  });
+
+  $('#qCancel').onclick = closeDrawer;
+
+  $('#qSave').onclick = async (e) => {
+    const btn = e.currentTarget;
+    if (!quoteCart.length) return toast('Agrega al menos un producto', 'err');
+    if (!$('#qName').value.trim()) return toast('Falta el nombre del cliente', 'err');
+    btn.disabled = true;
+    btn.textContent = 'Guardando…';
+
+    const { data, error } = await sb.rpc('ts_quote_save', {
+      p_quote_id: quote ? quote.id : null,
+      p_customer: {
+        name: $('#qName').value.trim(),
+        phone: $('#qPhone').value.trim(),
+        email: $('#qEmail').value.trim(),
+        address: $('#qAddr').value.trim(),
+      },
+      p_items: quoteCart.map((i) => ({ product_id: i.id, qty: i.qty })),
+      p_valid_days: Number($('#qDays').value || 15),
+      p_notes: $('#qNotes').value.trim() || null,
+      p_discount: Number($('#qDiscount').value || 0),
+      p_status: quote ? quote.status : 'borrador',
+    });
+
+    if (error) {
+      toast(errMessage(error), 'err');
+      btn.disabled = false;
+      btn.textContent = 'Guardar cotización';
+      return;
+    }
+    toast(`Cotización ${data.code} guardada`);
+    closeDrawer();
+    await renderQuotes();
+  };
+
+  drawProducts();
+  drawLines();
+}
+
+$('#btnNewQuote').addEventListener('click', () => openQuoteEditor(null));
 
 /* ---------------- usuarios y roles ---------------- */
 const ROLE_LABEL = { admin: 'Administrador', operador: 'Operador', cliente: 'Cliente' };
