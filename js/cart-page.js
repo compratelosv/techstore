@@ -1,6 +1,6 @@
 /* cart-page.js — carrito con stock en vivo */
-import { sb, money, esc, toast, mountHeader, setCartCount, errMessage } from './core.js';
-import { getCart, setQty, removeItem, clearCart, cartTotal, cartCount } from './cart.js';
+import { sb, money, esc, toast, mountHeader, setCartCount, errMessage } from './core.js?v=6bf78bd8';
+import { getCart, setQty, removeItem, clearCart, cartTotal, cartCount } from './cart.js?v=213c08d9';
 
 const linesEl = document.getElementById('cartLines');
 const emptyEl = document.getElementById('cartEmpty');

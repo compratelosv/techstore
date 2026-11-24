@@ -1,6 +1,6 @@
 /* checkout.js — crea el pedido (estado pendiente_pago) */
-import { sb, money, esc, toast, mountHeader, getProfile, requireLogin, errMessage } from './core.js';
-import { getCart, cartTotal, clearCart } from './cart.js';
+import { sb, money, esc, toast, mountHeader, getProfile, requireLogin, errMessage } from './core.js?v=6bf78bd8';
+import { getCart, cartTotal, clearCart } from './cart.js?v=213c08d9';
 
 const items = getCart();
 const zonesEl = document.getElementById('cZone');

@@ -1,6 +1,6 @@
 /* admin.js — shell del panel: pedidos, preparación e inventario */
-import { sb, money, esc, toast, fmtDate, errMessage, STATUS_LABEL, getUser } from './core.js';
-import { initPos } from './pos.js';
+import { sb, money, esc, toast, fmtDate, errMessage, STATUS_LABEL, getUser } from './core.js?v=6bf78bd8';
+import { initPos } from './pos.js?v=868ba2f2';
 
 /* ---------------- estado ---------------- */
 const state = {
@@ -55,6 +55,11 @@ async function boot() {
   $('#loginWrap').classList.add('hidden');
   $('#appShell').classList.remove('hidden');
   $('#sideWho').textContent = `${profile.email || user.email} · ${profile.role}`;
+  // versión del código cargado: sirve para diagnosticar cachés viejas
+  const own = Array.from(document.scripts).find((s) => s.src.includes('js/admin.js'));
+  const ver = own ? new URL(own.src).searchParams.get('v') : 'dev';
+  $('#sideWho').textContent += ` · v${ver}`;
+  window.__tsReady = true;
   await refreshAll();
   initPos({ sb, money, esc, toast, errMessage });
   setView(viewFromHash()); // respeta admin.html#inventario

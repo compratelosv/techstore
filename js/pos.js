@@ -7,7 +7,7 @@
  * El cobro usa las mismas funciones que la tienda: ts_place_order (canal 'pos')
  * y ts_confirm_payment, que es la única que descuenta stock.
  */
-import { Scanner } from './scanner.js';
+import { Scanner } from './scanner.js?v=90ef2e67';
 
 let booted = false;
 let api = null;

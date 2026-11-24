@@ -1,6 +1,6 @@
 /* product.js — ficha de producto */
-import { sb, money, esc, toast, mountHeader, errMessage } from './core.js';
-import { addItem, cartCount } from './cart.js';
+import { sb, money, esc, toast, mountHeader, errMessage } from './core.js?v=6bf78bd8';
+import { addItem, cartCount } from './cart.js?v=213c08d9';
 
 const view = document.getElementById('productView');
 const sku = new URLSearchParams(location.search).get('sku');

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Panel · TechStore SV</title>
 <link rel="icon" href="assets/favicon.svg">
-<link rel="stylesheet" href="css/admin.css">
+<link rel="stylesheet" href="css/admin.css?v=23bd2b3c">
 </head>
 <body>
 
@@ -153,7 +153,8 @@
           <h3 style="margin:0">Productos</h3>
           <div class="row">
             <input class="field" id="invSearch" placeholder="Buscar…" style="max-width:240px">
-            <button class="btn primary sm" id="btnNewProduct">＋ Nuevo producto</button>
+            <button class="btn primary sm" id="btnNewProduct"
+              onclick="if(!window.__tsReady){alert('La app está desactualizada en este teléfono. Cierra la pestaña y vuelve a abrirla.');}">＋ Nuevo producto</button>
           </div>
         </div>
         <div style="overflow-x:auto">
@@ -186,6 +187,6 @@
 <script src="vendor/zxing-library.min.js"></script>
 <script src="vendor/zxing-browser.min.js"></script>
 <script src="vendor/jsbarcode.min.js"></script>
-<script type="module" src="js/admin.js"></script>
+<script type="module" src="js/admin.js?v=9aefb71c"></script>
 </body>
 </html>
