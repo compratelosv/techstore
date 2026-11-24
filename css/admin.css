@@ -140,6 +140,32 @@ h3{font-size:.98rem}
 .pos-line .rm{background:none;border:0;color:var(--bad);cursor:pointer;font-size:.9rem}
   .pos-total{display:flex;justify-content:space-between;font-weight:800;font-size:1.1rem;margin:.8rem 0}
 
+/* ticket de caja: línea con cantidad editable */
+.ticket-line{display:grid;grid-template-columns:1fr auto;gap:.5rem;align-items:center;padding:.55rem 0;border-bottom:1px solid var(--line)}
+.ticket-line .tl-name{font-size:.86rem;font-weight:600}
+.ticket-line .tl-sub{font-size:.74rem;color:var(--muted);font-family:ui-monospace,monospace}
+.ticket-line .tl-right{display:flex;align-items:center;gap:.5rem}
+.qty-box{display:flex;align-items:center;border:1px solid var(--line);border-radius:9px;overflow:hidden}
+.qty-box button{background:var(--bg-3);border:0;color:var(--txt);width:32px;height:32px;font-size:1rem;cursor:pointer}
+.qty-box span{min-width:34px;text-align:center;font-weight:800;font-size:.9rem}
+.ticket-line .amount{min-width:78px;text-align:right;font-weight:700;font-size:.9rem}
+.scan-actions input#posCodeInput{flex:1;background:var(--bg);border:1px solid var(--line);color:var(--txt);border-radius:9px;padding:.55rem .7rem;font:inherit;font-size:.9rem}
+
+/* visor de escaneo */
+.scan-overlay{position:fixed;inset:0;background:#000;z-index:120;overflow:hidden}
+.scan-overlay video{width:100%;height:100%;object-fit:cover}
+.scan-frame{position:absolute;inset:26% 8%;pointer-events:none}
+.scan-frame span{position:absolute;width:34px;height:34px;border:4px solid #fff;border-radius:3px}
+.scan-frame span:nth-child(1){top:0;left:0;border-right:0;border-bottom:0}
+.scan-frame span:nth-child(2){top:0;right:0;border-left:0;border-bottom:0}
+.scan-frame span:nth-child(3){bottom:0;left:0;border-right:0;border-top:0}
+.scan-frame span:nth-child(4){bottom:0;right:0;border-left:0;border-top:0}
+.scan-top{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:1rem 1.1rem;color:#fff;background:linear-gradient(#000000a8,transparent)}
+.scan-top span{font-weight:800;font-size:.95rem;background:#ffffff22;padding:.3rem .7rem;border-radius:999px}
+.scan-bottom{position:absolute;bottom:0;left:0;right:0;padding:1.2rem 1.1rem calc(1.4rem + env(safe-area-inset-bottom,0px));color:#fff;text-align:center;font-weight:700;font-size:1rem;background:linear-gradient(transparent,#000000c4)}
+.scan-bottom.hit{color:#34d399}
+.scan-bottom.miss{color:#fca5a5}
+
 .toast{
   position:fixed;left:50%;bottom:22px;transform:translate(-50%,18px);opacity:0;pointer-events:none;
   background:var(--bg-3);border:1px solid var(--line);color:var(--txt);padding:.65rem 1rem;border-radius:11px;

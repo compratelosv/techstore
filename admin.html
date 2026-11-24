@@ -87,18 +87,26 @@
     <!-- POS -->
     <section id="view-pos" class="hidden">
       <div class="pos-grid">
+
+        <!-- izquierda: caja / ticket -->
         <div class="panel">
-          <div class="field">
-            <label for="posSearch">Buscar producto</label>
-            <input id="posSearch" placeholder="Nombre, marca o SKU…">
+          <div class="scan-actions">
+            <button class="btn primary block" id="posScanBtn">📷 Escanear producto</button>
+            <button class="btn ghost block sm" id="posPhotoBtn" style="margin-top:.4rem">🖼 Leer desde una foto</button>
+            <input type="file" id="posPhotoInput" accept="image/*" capture="environment" hidden>
+            <div class="row" style="margin-top:.6rem">
+              <input id="posCodeInput" placeholder="O escribe el código y Enter" inputmode="numeric" autocomplete="off">
+              <button class="btn" id="posCodeAdd">Agregar</button>
+            </div>
+            <p class="small muted" id="posScanHint">Apunta al código de barras del producto. Cada lectura suma una unidad.</p>
           </div>
-          <div class="pos-products" id="posProducts"></div>
-        </div>
-        <div class="panel">
-          <h3>Venta actual</h3>
+
+          <h3 style="margin-top:1rem">Ticket</h3>
           <div id="posLines"></div>
-          <p class="small muted" id="posEmpty">Agrega productos para cobrar.</p>
+          <p class="small muted" id="posEmpty">Sin productos. Escanea el primero.</p>
+
           <div class="pos-total"><span>Total</span><span id="posTotal">$0.00</span></div>
+
           <div class="field">
             <label for="posName">Cliente (opcional)</label>
             <input id="posName" placeholder="Consumidor final">
@@ -112,10 +120,30 @@
             </select>
           </div>
           <button class="btn primary block" id="posCharge" disabled>Cobrar y generar pedido</button>
-          <button class="btn ghost block sm" id="posClear" style="margin-top:.4rem">Vaciar</button>
+          <button class="btn ghost block sm" id="posClear" style="margin-top:.4rem">Vaciar ticket</button>
+        </div>
+
+        <!-- derecha: catálogo rápido -->
+        <div class="panel">
+          <div class="field">
+            <label for="posSearch">Tocar producto (sin código a mano)</label>
+            <input id="posSearch" placeholder="Nombre, marca o SKU…">
+          </div>
+          <div class="pos-products" id="posProducts"></div>
         </div>
       </div>
     </section>
+
+    <!-- visor de escaneo a pantalla completa -->
+    <div class="scan-overlay hidden" id="scanOverlay">
+      <video id="posVideo" playsinline muted autoplay></video>
+      <div class="scan-frame"><span></span><span></span><span></span><span></span></div>
+      <div class="scan-top">
+        <span id="scanCount">0 artículos</span>
+        <button class="btn ghost sm" id="scanClose">Cerrar</button>
+      </div>
+      <div class="scan-bottom" id="scanFeedback">Enfoca el código…</div>
+    </div>
 
     <!-- INVENTARIO -->
     <section id="view-inventory" class="hidden">
@@ -152,6 +180,9 @@
 </aside>
 
 <script src="vendor/supabase.js"></script>
+<script src="vendor/zxing-library.min.js"></script>
+<script src="vendor/zxing-browser.min.js"></script>
+<script src="vendor/jsbarcode.min.js"></script>
 <script type="module" src="js/admin.js"></script>
 </body>
 </html>

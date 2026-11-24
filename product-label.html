@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Etiqueta de producto · TechStore</title>
+<link rel="stylesheet" href="css/admin.css">
+<style>
+  body{background:#e5e7eb;color:#000}
+  .sheet-wrap{max-width:420px;margin:1.5rem auto;padding:0 1rem}
+  .plabel{
+    background:#fff;border-radius:8px;padding:14px 16px;box-shadow:0 10px 30px -12px rgba(0,0,0,.45);
+    text-align:center;
+  }
+  .plabel .brandline-pl{font:800 11px system-ui;letter-spacing:.12em;text-transform:uppercase;color:#666}
+  .plabel .pname{font:800 19px system-ui;margin:4px 0 2px;line-height:1.2}
+  .plabel .psub{font:500 11px system-ui;color:#555}
+  .plabel .pprice{font:800 26px system-ui;margin:6px 0 4px;letter-spacing:-.02em}
+  .plabel canvas{width:100%;height:auto;max-height:110px;image-rendering:pixelated}
+  .plabel .pcode{font:600 12px ui-monospace,monospace;color:#333;letter-spacing:.08em}
+  .bar{display:flex;gap:.5rem;justify-content:center;margin-top:1rem}
+  @media print{
+    body{background:#fff}
+    .bar,.hint{display:none !important}
+    .sheet-wrap{margin:0;max-width:none;padding:0}
+    .plabel{box-shadow:none;border-radius:0;padding:0;page-break-inside:avoid}
+    @page{margin:6mm}
+  }
+</style>
+</head>
+<body>
+<div class="sheet-wrap">
+  <div id="labelHost"><p class="hint small muted" style="text-align:center;padding:2rem">Cargando…</p></div>
+  <div class="bar">
+    <button class="btn primary" id="printBtn">Imprimir</button>
+    <a class="btn" href="admin.html">Volver al panel</a>
+  </div>
+  <p class="hint small muted" style="text-align:center;margin-top:1rem">
+    Etiqueta de anaquel · código EAN-13 escaneable en el POS.
+  </p>
+</div>
+
+<script src="vendor/supabase.js"></script>
+<script src="vendor/jsbarcode.min.js"></script>
+<script type="module" src="js/product-label.js"></script>
+</body>
+</html>

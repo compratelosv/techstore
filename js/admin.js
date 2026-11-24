@@ -396,7 +396,8 @@ function renderInventory() {
         <td class="small muted">${esc(p.brand || '')}</td>
         <td class="num">${money(p.price)}</td>
         <td class="num" style="color:${p.stock === 0 ? 'var(--bad)' : p.stock <= p.low_stock ? 'var(--warn)' : 'inherit'}">${p.stock}</td>
-        <td><button class="btn sm" data-inv="${p.id}">Ajustar</button></td>
+        <td><button class="btn sm" data-inv="${p.id}">Ajustar</button>
+            <a class="btn sm ghost" href="product-label.html?sku=${encodeURIComponent(p.sku)}" target="_blank" rel="noopener">Etiqueta</a></td>
       </tr>`)
     .join('');
 

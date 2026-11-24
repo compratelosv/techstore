@@ -31,7 +31,8 @@ Son cuentas de sandbox creadas directamente en la base con correo ya confirmado.
 - **Pedidos:** KPIs (cobrado, activos, por preparar, listos), filtros por estado, búsqueda y detalle con historial de eventos.
 - **Preparación:** tablero de tres columnas — por embalar, en preparación y listos — con los SKU y cantidades a empacar.
 - **Etiqueta imprimible:** botón por pedido que abre una etiqueta de 100 × 70 mm con **QR del código de pedido**, cliente, destino y SKUs. Imprime en hoja normal o térmica.
-- **Punto de venta:** búsqueda de productos, carrito, forma de pago y cobro inmediato. Genera pedido con canal `pos`, ya pagado, y descuenta inventario.
+- **Punto de venta tipo caja de supermercado:** se escanea el código de barras con la **cámara del teléfono** y cada lectura suma una unidad al ticket. Muestra cantidades y subtotales en vivo, permite ajustar con ±, y cobra con `ts_place_order` + `ts_confirm_payment` (canal `pos`). También acepta código escrito a mano, lector USB y lectura desde una foto.
+- **Etiquetas de anaquel:** cada producto tiene un **EAN-13 válido** (prefijo 200, uso interno) imprimible desde Inventario → *Etiqueta*, listo para escanear en el POS.
 - **Inventario:** stock por SKU, alertas de stock bajo y agotados, ajuste manual con motivo y bitácora de movimientos.
 
 ## Flujo del pedido
@@ -136,6 +137,11 @@ Todo comprobado sobre el proyecto real de Supabase y en el navegador:
 | Envío con costo en producción | subtotal $45 + zona Santa Ana $5 = **$50.00**, pedido `TEC-001002` pagado ✅ |
 | Stock en producción | AUD-303 55→54 tras el cobro ✅ |
 | Panel en producción | ventas $417, 1 activo, 1 por preparar, ticket visible en el tablero ✅ |
+| **Escáner del POS** | tres lecturas del mismo código → cantidad 3; otra lectura → línea nueva; código inexistente rechazado con aviso ✅ |
+| EAN-13 de anaquel | generado en canvas y **decodificado con ZXing: `2000000000114` / EAN_13** ✅ |
+| Lectura desde foto en el POS | la misma foto subida dos veces sumó 2 unidades y $90.00 al ticket ✅ |
+| Ajuste de cantidades | +1 → $135, −1 → $90; cobro de $90 creó `TEC-001005` y descontó stock ✅ |
+| Integridad | 0 productos con stock negativo ✅ |
 
 **No verificado / pendiente de decidir:**
 
