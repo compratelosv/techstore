@@ -152,6 +152,15 @@ Todo comprobado sobre el proyecto real de Supabase y en el navegador:
 
 ## Despliegue
 
+**Antes de cada push:**
+
+```bash
+python tools/stamp_assets.py   # añade ?v=<hash> a js/css
+```
+
+Ese paso es obligatorio: GitHub Pages sirve los assets con `max-age=600`, y sin versionar puede
+entregar el HTML nuevo con el JS viejo (un botón recién añadido “no hace nada”, sin errores).
+
 ```bash
 GIT_TERMINAL_PROMPT=0 git \
   -c credential.helper= \
