@@ -33,6 +33,8 @@ Son cuentas de sandbox creadas directamente en la base con correo ya confirmado.
 - **Etiqueta imprimible:** botón por pedido que abre una etiqueta de 100 × 70 mm con **QR del código de pedido**, cliente, destino y SKUs. Imprime en hoja normal o térmica.
 - **Punto de venta tipo caja de supermercado:** se escanea el código de barras con la **cámara del teléfono** y cada lectura suma una unidad al ticket. Muestra cantidades y subtotales en vivo, permite ajustar con ±, y cobra con `ts_place_order` + `ts_confirm_payment` (canal `pos`). También acepta código escrito a mano, lector USB y lectura desde una foto.
 - **Etiquetas de anaquel:** cada producto tiene un **EAN-13 válido** (prefijo 200, uso interno) imprimible desde Inventario → *Etiqueta*, listo para escanear en el POS.
+- **Alta escaneando:** en el formulario de producto se escanea el código real con la cámara (o desde una foto); el campo se llena solo, se valida el dígito verificador, se detecta si ya existe (abre ese producto en lugar de duplicarlo) y se consultan bases públicas para sugerir nombre y marca.
+- **SKU automático:** al escanear se arma como `CAT-MARCA-NNN` — abreviatura de categoría, 3 letras de la marca y un número derivado de los dígitos del código de barras, corrido hasta encontrar uno libre. Determinista (mismo producto y código ⇒ mismo SKU) y editable a mano; el botón ⟳ lo regenera.
 - **Inventario:** stock por SKU, alertas de stock bajo y agotados, ajuste manual con motivo y bitácora de movimientos.
 
 ## Flujo del pedido
