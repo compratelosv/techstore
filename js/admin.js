@@ -511,6 +511,54 @@ function newBarcode() {
   return ean13(`200${String(Date.now()).slice(-9)}`);
 }
 
+/* ---------- generación de SKU ----------
+ * Formato: <CAT3>-<MARCA3>-<NNN>
+ *   CAT3   = abreviatura de la categoría (LAP, PHN, AUD, ACC, MON, STO…)
+ *   MARCA3 = primeras 3 letras de la marca (GEN si no hay)
+ *   NNN    = número derivado del código de barras (últimos 3 dígitos antes del
+ *            verificador), corrido hacia arriba hasta encontrar uno libre.
+ * Así el SKU es determinista: mismo producto y mismo código ⇒ mismo SKU, y
+ * sigue siendo legible para una persona.
+ */
+const CAT_PREFIX = {
+  laptops: 'LAP',
+  smartphones: 'PHN',
+  audio: 'AUD',
+  accesorios: 'ACC',
+  monitores: 'MON',
+  almacenamiento: 'STO',
+};
+
+function letters3(text) {
+  const clean = String(text || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase()
+    .replace(/[^A-Z]/g, '');
+  return clean.slice(0, 3) || 'GEN';
+}
+
+function generateSku({ categoryId, brand, barcode, existing = [] } = {}) {
+  const cat = state.categories.find((c) => c.id === categoryId);
+  const prefix = CAT_PREFIX[cat?.slug] || letters3(cat?.name) || 'GEN';
+  const mark = letters3(brand);
+
+  const digits = String(barcode || '').replace(/\D/g, '');
+  // últimos 3 dígitos antes del verificador (más estables que el final)
+  const seed = digits.length >= 6 ? Number(digits.slice(-4, -1)) : 1;
+
+  const used = new Set(
+    [...state.products, ...existing].map((p) => String(p.sku || '').toUpperCase())
+  );
+
+  for (let i = 0; i < 900; i += 1) {
+    const num = String(100 + ((seed + i) % 900)).padStart(3, '0');
+    const sku = `${prefix}-${mark}-${num}`;
+    if (!used.has(sku)) return { sku, prefix, mark, num, origen: digits ? 'barcode' : 'secuencial' };
+  }
+  return { sku: `${prefix}-${mark}-${String(Date.now()).slice(-3)}`, prefix, mark, origen: 'fallback' };
+}
+
 /* Bases públicas por código de barras (sin API key). Si no hay datos, se
  * devuelve null y el formulario queda para llenado manual. */
 const PRODUCT_SOURCES = [
@@ -560,7 +608,11 @@ function openProductEditor(p = null) {
       <div class="panel">
         <div class="field">
           <label for="fSku">SKU / código interno *</label>
-          <input id="fSku" value="${esc(p?.sku || '')}" ${p ? 'readonly' : ''} placeholder="LAP-105">
+          <div class="row">
+            <input id="fSku" value="${esc(p?.sku || '')}" ${p ? 'readonly' : ''} placeholder="se genera al escanear">
+            ${p ? '' : '<button class="btn sm" id="fSkuGen" type="button" title="Generar SKU">⟳</button>'}
+          </div>
+          ${p ? '' : '<span class="small muted" id="fSkuHint">Categoría + marca + número del código de barras.</span>'}
         </div>
         <div class="field">
           <label for="fName">Nombre *</label>
@@ -619,6 +671,36 @@ function openProductEditor(p = null) {
 
   const barcodeEl = document.getElementById('fBarcode');
   const hintEl = document.getElementById('fScanHint');
+  const skuEl = document.getElementById('fSku');
+  const skuHintEl = document.getElementById('fSkuHint');
+  let skuTouched = Boolean(p); // al editar un producto existente nunca se toca el SKU
+
+  /** Genera el SKU desde categoría + marca + código de barras. */
+  function refreshSku(force = false) {
+    if (!skuEl || !skuHintEl) return;
+    if (skuTouched && !force) return;
+    if (!force && !skuEl.value && !barcodeEl.value) return; // nada sobre qué basarse
+    const r = generateSku({
+      categoryId: document.getElementById('fCat').value,
+      brand: document.getElementById('fBrand').value,
+      barcode: barcodeEl.value,
+    });
+    skuEl.value = r.sku;
+    const origen = r.origen === 'barcode' ? 'número tomado del código de barras' : 'secuencial (sin código)';
+    skuHintEl.textContent = `${r.prefix} (categoría) · ${r.mark} (marca) · ${r.num} · ${origen}`;
+    skuHintEl.style.color = 'var(--muted)';
+  }
+
+  if (skuEl) skuEl.addEventListener('input', () => { skuTouched = true; });
+  const skuGenBtn = document.getElementById('fSkuGen');
+  if (skuGenBtn) {
+    skuGenBtn.onclick = () => {
+      skuTouched = false;
+      refreshSku(true);
+    };
+  }
+  document.getElementById('fCat').addEventListener('change', () => refreshSku());
+  document.getElementById('fBrand').addEventListener('input', () => refreshSku());
 
   /** Normaliza y valida el código leído; avisa de duplicados. */
   async function applyScannedCode(raw) {
@@ -652,6 +734,7 @@ function openProductEditor(p = null) {
 
     hintEl.textContent = `Código ${code} listo. Buscando datos del producto…`;
     hintEl.style.color = 'var(--ok)';
+    refreshSku(); // el SKU se arma con la categoría/marca que haya ahora
 
     const found = await lookupProductData(code);
     if (found?.name) {
