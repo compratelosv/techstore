@@ -58,6 +58,7 @@
         <button data-view="deliveries" id="navDeliveries">🛵 Mis entregas</button>
         <button data-view="pos">🛒 Punto de venta</button>
         <button data-view="cash">💵 Caja</button>
+        <button data-view="agenda">📅 Citas</button>
         <button data-view="quotes">🧾 Cotizaciones</button>
         <button data-view="customers">👤 Clientes</button>
       </div>
@@ -70,6 +71,7 @@
       <div class="nav-group">
         <div class="nav-group-title">Administración</div>
         <button data-view="inventory">📊 Inventario</button>
+        <button data-view="promos" id="navPromos">🎟️ Promos</button>
         <button data-view="suppliers" id="navSuppliers">🚚 Proveedores</button>
         <button data-view="users" id="navUsers">👥 Usuarios</button>
         <button data-view="settings" id="navSettings">⚙️ Configuración</button>
@@ -477,6 +479,18 @@
           <div id="bankList"></div>
         </div>
       </div>
+      <div class="panel" style="margin-top:1rem">
+        <h3 style="margin-top:0">Redes sociales y APIs</h3>
+        <p class="small muted" style="margin-top:0">
+          Enlaces para la tienda y campos listos para conectar Meta / TikTok cuando tengas acceso.
+          Los <b>secretos</b> se guardan aparte, nunca se muestran de vuelta y no son legibles desde el navegador.
+        </p>
+        <div id="socialGrid"></div>
+        <div class="row" style="margin-top:.8rem;gap:.5rem">
+          <button class="btn primary" id="socialSave">Guardar redes</button>
+          <span class="small muted" id="socialMsg"></span>
+        </div>
+      </div>
     </section>
 
     <!-- PROVEEDORES -->
@@ -499,6 +513,47 @@
           <div id="purchaseList"></div>
           <p class="small muted" id="purEmpty" hidden>Sin compras registradas.</p>
         </div>
+      </div>
+    </section>
+
+    <!-- PROMOS -->
+    <section id="view-promos" class="hidden">
+      <div class="kpis" id="promoKpis"></div>
+      <div class="panel">
+        <div class="row" style="justify-content:space-between;margin-bottom:.8rem">
+          <h3 style="margin:0">Cupones y promociones</h3>
+          <button class="btn sm primary" id="btnNewPromo">＋ Nueva promo</button>
+        </div>
+        <div style="overflow-x:auto">
+          <table class="table stack-mobile" id="promoTable">
+            <thead>
+              <tr><th>Código</th><th>Tipo</th><th class="num">Valor</th><th>Vigencia</th><th class="num">Usos</th><th>Estado</th><th></th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <p class="small muted" id="promoEmpty" hidden>Sin promociones todavía.</p>
+        <p class="small muted" style="margin-top:.8rem">
+          Cada cliente nuevo recibe automáticamente un cupón de <b>10%</b> para su primera compra, válido 90 días.
+        </p>
+      </div>
+    </section>
+
+    <!-- AGENDA DE CITAS -->
+    <section id="view-agenda" class="hidden">
+      <div class="panel" style="margin-bottom:1rem">
+        <div class="row wrap" style="justify-content:space-between;gap:.6rem">
+          <div class="row" style="gap:.5rem;align-items:center">
+            <label for="agDate" class="small muted">Día</label>
+            <input type="date" id="agDate">
+          </div>
+          <button class="btn sm" id="agRefresh">Actualizar</button>
+        </div>
+      </div>
+      <div class="kpis" id="agKpis"></div>
+      <div class="panel">
+        <div id="agList"></div>
+        <p class="small muted" id="agEmpty" hidden>No hay citas para ese día.</p>
       </div>
     </section>
 
@@ -544,6 +599,6 @@
 <script src="vendor/zxing-library.min.js"></script>
 <script src="vendor/zxing-browser.min.js"></script>
 <script src="vendor/jsbarcode.min.js"></script>
-<script type="module" src="js/admin.js?v=5b218a10"></script>
+<script type="module" src="js/admin.js?v=5ab3e289"></script>
 </body>
 </html>

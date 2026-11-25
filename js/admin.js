@@ -1,5 +1,5 @@
 /* admin.js — shell del panel: pedidos, preparación e inventario */
-import { sb, money, esc, toast, fmtDate, errMessage, STATUS_LABEL, getUser, loadCurrency, getCurrency } from './core.js?v=5214a642';
+import { sb, money, esc, toast, fmtDate, errMessage, STATUS_LABEL, getUser, loadCurrency, getCurrency } from './core.js?v=64144037';
 import { initPos, scanOnce, scanStream, stopScan, scanFeedback } from './pos.js?v=926d48b5';
 import { Scanner } from './scanner.js?v=90ef2e67';
 
@@ -25,6 +25,8 @@ const state = {
   deliveries: [],
   delFilter: 'today',
   cash: null,
+  promos: [],
+  agenda: [],
 };
 
 const $ = (s) => document.querySelector(s);
@@ -88,6 +90,7 @@ async function boot() {
   const isAdmin = profile.role === 'admin';
   const isCourier = profile.role === 'transportista';
   $('#navUsers').classList.toggle('hidden', !isAdmin);
+  $('#navPromos').classList.toggle('hidden', !isAdmin);
   $('#navSuppliers').classList.toggle('hidden', !isAdmin);
   $('#navSettings').classList.toggle('hidden', !isAdmin);
   $('#navDeliveries').classList.toggle('hidden', !isCourier);
@@ -164,6 +167,8 @@ const TITLES = {
   fulfillment: ['Preparación', 'Lo que hay que embalar y entregar, por etapa'],
   pos: ['Punto de venta', 'Venta presencial: descuenta inventario al cobrar'],
   cash: ['Caja', 'Turno abierto, arqueo y diferencia'],
+  agenda: ['Citas', 'Quién viene hoy a recoger, a qué hora y en qué punto'],
+  promos: ['Promociones', 'Cupones, descuentos por temporada y cupón de bienvenida'],
   sales: ['Ventas', 'Ingresos, ticket promedio, margen y productos más vendidos'],
   quotes: ['Cotizaciones', 'Propuestas de precio para clientes, listas para enviar'],
   deliveries: ['Mis entregas', 'Pedidos asignados a ti: sal a ruta y marca la entrega'],
@@ -180,6 +185,8 @@ const HASH_TO_VIEW = {
   preparacion: 'fulfillment', fulfillment: 'fulfillment',
   pos: 'pos',
   caja: 'cash', cash: 'cash',
+  citas: 'agenda', agenda: 'agenda',
+  promos: 'promos', promociones: 'promos',
   cotizaciones: 'quotes', quotes: 'quotes',
   entregas: 'deliveries', deliveries: 'deliveries',
   clientes: 'customers', customers: 'customers',
@@ -190,7 +197,8 @@ const HASH_TO_VIEW = {
   inventario: 'inventory', inventory: 'inventory',
 };
 const VIEW_TO_HASH = {
-  orders: 'pedidos', fulfillment: 'preparacion', pos: 'pos', cash: 'caja', quotes: 'cotizaciones',
+  orders: 'pedidos', fulfillment: 'preparacion', pos: 'pos', cash: 'caja',
+  agenda: 'citas', promos: 'promos', quotes: 'cotizaciones',
   deliveries: 'entregas',
   customers: 'clientes', suppliers: 'proveedores',
   sales: 'ventas', users: 'usuarios', settings: 'configuracion', inventory: 'inventario',
@@ -204,7 +212,7 @@ function viewFromHash() {
 function setView(view, { syncHash = true } = {}) {
   state.view = view;
   $$('#sideNav button').forEach((b) => b.classList.toggle('active', b.dataset.view === view));
-  ['orders', 'fulfillment', 'deliveries', 'pos', 'cash', 'quotes', 'customers', 'suppliers', 'sales', 'users', 'settings', 'inventory'].forEach((v) => {
+  ['orders', 'fulfillment', 'deliveries', 'pos', 'cash', 'agenda', 'promos', 'quotes', 'customers', 'suppliers', 'sales', 'users', 'settings', 'inventory'].forEach((v) => {
     $(`#view-${v}`).classList.toggle('hidden', v !== view);
   });
   $('#viewTitle').textContent = TITLES[view][0];
@@ -219,6 +227,8 @@ function setView(view, { syncHash = true } = {}) {
   if (view === 'inventory') renderInventory();
   if (view === 'pos') renderPos();
   if (view === 'cash') renderCash();
+  if (view === 'agenda') renderAgenda();
+  if (view === 'promos') renderPromos();
   if (view === 'sales') renderSales();
   if (view === 'quotes') renderQuotes();
   if (view === 'customers') renderCustomers();
@@ -1076,6 +1086,8 @@ async function renderSettings() {
         )
         .join('')
     : '<p class="small muted">Sin cuentas registradas.</p>';
+
+  await renderSocial();
 }
 
 $('#curCode').addEventListener('change', () => {
@@ -1851,6 +1863,320 @@ function openPurchaseForm() {
   drawProducts();
   drawLines();
 }
+
+/* ---------------- promociones ---------------- */
+async function renderPromos() {
+  if (state.profile?.role !== 'admin') {
+    toast('Solo el administrador gestiona promociones', 'err');
+    return setView('orders');
+  }
+
+  const [{ data: promos, error }, { data: reds }] = await Promise.all([
+    sb.from('ts_promos').select('*').order('created_at', { ascending: false }),
+    sb.from('ts_promo_redemptions').select('promo_id, amount'),
+  ]);
+  if (error) return toast(errMessage(error), 'err');
+
+  state.promos = promos || [];
+  const totalDesc = (reds || []).reduce((n, r) => n + Number(r.amount), 0);
+  const usos = (reds || []).length;
+
+  $('#promoKpis').innerHTML = `
+    <div class="kpi"><span class="k-label">Promos activas</span><b>${state.promos.filter((p) => p.active).length}</b></div>
+    <div class="kpi"><span class="k-label">Cupones usados</span><b>${usos}</b></div>
+    <div class="kpi"><span class="k-label">Descuento otorgado</span><b>${money(totalDesc)}</b></div>
+    <div class="kpi"><span class="k-label">De bienvenida</span><b>${state.promos.filter((p) => p.kind === 'bienvenida').length}</b></div>`;
+
+  $('#promoTable').querySelector('tbody').innerHTML = state.promos
+    .map((p) => {
+      const vencida = p.ends_at && new Date(p.ends_at) < new Date();
+      const estado = !p.active ? 'cancelado' : vencida ? 'pendiente_pago' : 'entregado';
+      const etiqueta = !p.active ? 'Pausada' : vencida ? 'Vencida' : 'Activa';
+      return `<tr>
+        <td data-label="Código"><span class="mono">${esc(p.code)}</span>
+          <div class="small muted">${esc(p.name || '')}${p.owner_id ? ' · personal' : ''}</div></td>
+        <td data-label="Tipo" class="small">${p.scope === 'all' ? 'Todo el catálogo' : 'Productos elegidos'}${p.new_customers_only ? ' · solo nuevos' : ''}</td>
+        <td data-label="Valor" class="num">${p.discount_type === 'percent' ? p.discount_value + '%' : money(p.discount_value)}</td>
+        <td data-label="Vigencia" class="small">${p.ends_at ? fmtDate(p.ends_at) : 'sin fin'}</td>
+        <td data-label="Usos" class="num">${p.used_count}${p.max_uses ? ' / ' + p.max_uses : ''}</td>
+        <td data-label="Estado"><span class="badge ${estado}">${etiqueta}</span></td>
+        <td data-label="">
+          <button class="btn sm ghost" data-promo-toggle="${p.id}" data-active="${p.active}">${p.active ? 'Pausar' : 'Activar'}</button>
+        </td>
+      </tr>`;
+    })
+    .join('');
+  $('#promoEmpty').hidden = state.promos.length > 0;
+}
+
+$('#promoTable').addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-promo-toggle]');
+  if (!b) return;
+  const activar = b.dataset.active !== 'true';
+  b.disabled = true;
+  const { error } = await sb.from('ts_promos').update({ active: activar }).eq('id', b.dataset.promoId || b.dataset.promoToggle);
+  b.disabled = false;
+  if (error) return toast(errMessage(error), 'err');
+  renderPromos();
+});
+
+$('#btnNewPromo').addEventListener('click', () => openPromoForm());
+
+function openPromoForm() {
+  openDrawer({
+    title: 'Nueva promoción',
+    subtitle: 'Cupón por código, con vigencia y alcance',
+    body: `
+      <div class="panel" style="margin-bottom:.8rem">
+        <div class="field"><label for="prName">Nombre</label><input id="prName" placeholder="Promo navideña"></div>
+        <div class="field"><label for="prCode">Código</label>
+          <div class="row" style="gap:.4rem">
+            <input id="prCode" placeholder="NAVIDAD25" style="flex:1">
+            <button class="btn sm" type="button" id="prGen">Generar</button>
+          </div>
+        </div>
+        <div class="row" style="gap:.6rem">
+          <div class="field" style="flex:1"><label for="prType">Tipo</label>
+            <select id="prType"><option value="percent">Porcentaje</option><option value="fixed">Monto fijo</option></select>
+          </div>
+          <div class="field" style="flex:1"><label for="prValue">Valor</label>
+            <input id="prValue" type="number" min="0.01" step="0.01" value="10"></div>
+        </div>
+        <div class="row" style="gap:.6rem">
+          <div class="field" style="flex:1"><label for="prMin">Compra mínima</label>
+            <input id="prMin" type="number" min="0" step="0.01" value="0"></div>
+          <div class="field" style="flex:1"><label for="prMax">Usos totales</label>
+            <input id="prMax" type="number" min="0" placeholder="sin límite"></div>
+        </div>
+        <div class="row" style="gap:.6rem">
+          <div class="field" style="flex:1"><label for="prStart">Desde</label><input id="prStart" type="date"></div>
+          <div class="field" style="flex:1"><label for="prEnd">Hasta</label><input id="prEnd" type="date"></div>
+        </div>
+        <div class="field"><label for="prScope">Aplica a</label>
+          <select id="prScope"><option value="all">Todo el catálogo</option><option value="products">Productos seleccionados</option></select>
+        </div>
+        <label class="row" style="gap:.5rem;align-items:center;font-size:.86rem">
+          <input type="checkbox" id="prNew"> Solo clientes nuevos (primera compra)
+        </label>
+      </div>
+
+      <div class="panel" id="prProductsBox" hidden>
+        <h3 style="margin-top:0">Productos</h3>
+        <div class="field"><input id="prSearch" placeholder="Buscar…"></div>
+        <div id="prProducts" style="max-height:240px;overflow:auto"></div>
+      </div>`,
+    foot: `<button class="btn primary" id="prSave">Crear promoción</button>
+           <button class="btn ghost" id="prCancel">Cancelar</button>`,
+  });
+
+  const picked = new Set();
+  const drawProducts = () => {
+    const term = ($('#prSearch').value || '').toLowerCase();
+    $('#prProducts').innerHTML = state.products
+      .filter((p) => !term || p.name.toLowerCase().includes(term) || p.sku.toLowerCase().includes(term))
+      .slice(0, 60)
+      .map((p) => `<label class="row" style="gap:.5rem;padding:.3rem 0;font-size:.84rem">
+        <input type="checkbox" data-prod="${p.id}" ${picked.has(p.id) ? 'checked' : ''}>
+        <span>${esc(p.name)} <span class="muted">· ${esc(p.sku)}</span></span>
+      </label>`)
+      .join('');
+  };
+
+  $('#prScope').onchange = () => {
+    $('#prProductsBox').hidden = $('#prScope').value !== 'products';
+    if (!$('#prProductsBox').hidden) drawProducts();
+  };
+  $('#prSearch').addEventListener('input', drawProducts);
+  $('#prProducts').addEventListener('change', (e) => {
+    const cb = e.target.closest('[data-prod]');
+    if (!cb) return;
+    if (cb.checked) picked.add(cb.dataset.prod);
+    else picked.delete(cb.dataset.prod);
+  });
+  $('#prGen').onclick = () => {
+    $('#prCode').value = 'PROMO' + Math.random().toString(36).slice(2, 6).toUpperCase();
+  };
+  $('#prCancel').onclick = closeDrawer;
+
+  $('#prSave').onclick = async (e) => {
+    const code = $('#prCode').value.trim().toUpperCase();
+    if (!code) return toast('Falta el código', 'err');
+    const payload = {
+      code,
+      name: $('#prName').value.trim() || null,
+      kind: 'cupon',
+      discount_type: $('#prType').value,
+      discount_value: Number($('#prValue').value || 0),
+      min_subtotal: Number($('#prMin').value || 0),
+      max_uses: $('#prMax').value ? Number($('#prMax').value) : null,
+      max_uses_per_user: 1,
+      scope: $('#prScope').value,
+      new_customers_only: $('#prNew').checked,
+      starts_at: $('#prStart').value ? new Date($('#prStart').value + 'T00:00:00').toISOString() : new Date().toISOString(),
+      ends_at: $('#prEnd').value ? new Date($('#prEnd').value + 'T23:59:59').toISOString() : null,
+      active: true,
+    };
+    if (!(payload.discount_value > 0)) return toast('El valor debe ser mayor que cero', 'err');
+
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    const { data, error } = await sb.from('ts_promos').insert(payload).select('id').maybeSingle();
+    if (error) {
+      btn.disabled = false;
+      return toast(errMessage(error), 'err');
+    }
+    if (payload.scope === 'products' && picked.size) {
+      const rows = [...picked].map((pid) => ({ promo_id: data.id, product_id: pid }));
+      const { error: e2 } = await sb.from('ts_promo_products').insert(rows);
+      if (e2) toast('Promo creada, pero no se guardaron los productos: ' + errMessage(e2), 'err');
+    }
+    btn.disabled = false;
+    toast('Promoción creada');
+    closeDrawer();
+    renderPromos();
+  };
+}
+
+/* ---------------- agenda de citas ---------------- */
+async function renderAgenda() {
+  const dayEl = $('#agDate');
+  if (!dayEl.value) {
+    dayEl.value = new Date().toISOString().slice(0, 10);
+  }
+  const { data, error } = await sb.rpc('ts_pickup_agenda', { p_date: dayEl.value });
+  if (error) return toast(errMessage(error), 'err');
+
+  const list = data || [];
+  state.agenda = list;
+  const confirmadas = list.filter((x) => x.confirmed).length;
+  const noShows = list.filter((x) => x.status === 'no_show').length;
+
+  $('#agKpis').innerHTML = `
+    <div class="kpi"><span class="k-label">Citas del día</span><b>${list.length}</b></div>
+    <div class="kpi"><span class="k-label">Confirmadas</span><b>${confirmadas}</b></div>
+    <div class="kpi"><span class="k-label">Inasistencias</span><b>${noShows}</b></div>
+    <div class="kpi"><span class="k-label">Sin confirmar</span><b>${Math.max(list.length - confirmadas - noShows, 0)}</b></div>`;
+
+  $('#agList').innerHTML = list
+    .map((x) => `<div class="line" style="grid-template-columns:auto 1fr auto;gap:.8rem;padding:.6rem 0;align-items:start">
+      <div class="mono" style="font-size:1rem;min-width:52px">${esc(x.start)}</div>
+      <div>
+        <div class="tl-name">${esc(x.code)} · ${esc(x.customer_name || '')}</div>
+        <div class="tl-sub">${esc(x.point || '')} · ${x.confirmed ? '✓ confirmado' : 'sin confirmar'} · ${x.no_show_count ? 'inasistencias: ' + x.no_show_count : ''}</div>
+      </div>
+      <div class="row" style="gap:.3rem">
+        <span class="badge ${x.status === 'no_show' ? 'cancelado' : x.status === 'entregado' ? 'entregado' : 'pagado'}">${STATUS_LABEL[x.status] || x.status}</span>
+        ${['pagado', 'en_preparacion', 'listo', 'en_ruta'].includes(x.status)
+          ? `<button class="btn sm ghost" data-nshow="${x.order_id}">No se presentó</button>` : ''}
+        ${x.status === 'no_show' ? `<button class="btn sm danger" data-ncancel="${x.order_id}">Cancelar · retiene 20%</button>` : ''}
+      </div>
+    </div>`)
+    .join('');
+  $('#agEmpty').hidden = list.length > 0;
+}
+
+$('#agRefresh').addEventListener('click', renderAgenda);
+$('#agDate').addEventListener('change', renderAgenda);
+
+$('#agList').addEventListener('click', async (e) => {
+  const ns = e.target.closest('[data-nshow]');
+  const nc = e.target.closest('[data-ncancel]');
+  if (ns) {
+    if (!confirm('Marcar como inasistencia? Se le enviará la opción de reagendar.')) return;
+    const { error } = await sb.rpc('ts_mark_no_show', { p_order_id: ns.dataset.nshow });
+    if (error) return toast(errMessage(error), 'err');
+    toast('Marcado como inasistencia');
+    renderAgenda();
+  }
+  if (nc) {
+    if (!confirm('Cancelar definitivamente? Se retiene el 20% del total.')) return;
+    const { data, error } = await sb.rpc('ts_cancel_no_show', { p_order_id: nc.dataset.ncancel });
+    if (error) return toast(errMessage(error), 'err');
+    toast(`Cancelado. Retención ${money(data.refund_retained)}`);
+    renderAgenda();
+  }
+});
+
+/* ---------------- redes sociales y APIs ---------------- */
+const SOCIAL_NETS = [
+  { key: 'instagram', label: 'Instagram', secret: 'meta_secret' },
+  { key: 'facebook', label: 'Facebook', secret: 'meta_secret' },
+  { key: 'tiktok', label: 'TikTok', secret: 'tiktok_secret' },
+  { key: 'whatsapp', label: 'WhatsApp Business', secret: 'whatsapp_token' },
+];
+
+async function renderSocial() {
+  const [{ data: cfg }, { data: secrets }] = await Promise.all([
+    sb.from('ts_settings').select('value').eq('key', 'social').maybeSingle(),
+    sb.rpc('ts_secrets_status'),
+  ]);
+  const social = cfg?.value || {};
+  const conf = secrets || {};
+
+  $('#socialGrid').innerHTML = SOCIAL_NETS.map((net) => {
+    const v = social[net.key] || {};
+    const api = v.api || {};
+    const hasSecret = !!conf[net.secret]?.configured;
+    return `<div class="panel" style="margin-bottom:.8rem;background:var(--bg-2)">
+      <div class="row" style="justify-content:space-between;align-items:center">
+        <b>${net.label}</b>
+        <label class="row" style="gap:.4rem;font-size:.8rem;align-items:center">
+          <input type="checkbox" data-net="${net.key}" data-field="enabled" ${v.enabled ? 'checked' : ''}> Mostrar en la tienda
+        </label>
+      </div>
+      <div class="row" style="gap:.6rem">
+        <div class="field" style="flex:1"><label>Usuario</label>
+          <input data-net="${net.key}" data-field="handle" value="${esc(v.handle || '')}" placeholder="@tunegocio"></div>
+        <div class="field" style="flex:1"><label>Enlace</label>
+          <input data-net="${net.key}" data-field="url" value="${esc(v.url || '')}" placeholder="https://…"></div>
+      </div>
+      <div class="row" style="gap:.6rem;align-items:flex-end;margin-top:.3rem">
+        <div class="field" style="flex:1"><label>App / Client ID</label>
+          <input data-net="${net.key}" data-field="app_id" value="${esc(api.app_id || '')}" placeholder="1234567890"></div>
+        <div class="field" style="flex:1"><label>Client Secret ${hasSecret ? '· guardado ✓' : ''}</label>
+          <input type="password" data-secret="${net.secret}" placeholder="${hasSecret ? '•••••••• (dejar vacío para conservar)' : 'pegar secreto'}"></div>
+      </div>
+      <div class="small muted" style="margin-top:.3rem">
+        ${api.enabled ? 'API activada' : 'API sin activar'} · ${hasSecret ? 'credencial guardada, no legible desde el navegador' : 'sin credencial'}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+$('#socialSave').addEventListener('click', async (e) => {
+  const btn = e.currentTarget;
+  btn.disabled = true;
+  const social = {};
+  SOCIAL_NETS.forEach((net) => {
+    const get = (f) => document.querySelector(`[data-net="${net.key}"][data-field="${f}"]`);
+    social[net.key] = {
+      handle: get('handle')?.value.trim() || '',
+      url: get('url')?.value.trim() || '',
+      enabled: !!get('enabled')?.checked,
+      api: {
+        enabled: false,
+        app_id: get('app_id')?.value.trim() || '',
+        secret_key: net.secret,
+        status: 'no_configurado',
+      },
+    };
+  });
+
+  const { error } = await sb.rpc('ts_save_setting', { p_key: 'social', p_value: social });
+  if (error) { btn.disabled = false; return toast(errMessage(error), 'err'); }
+
+  let guardados = 0;
+  for (const net of SOCIAL_NETS) {
+    const inp = document.querySelector(`[data-secret="${net.secret}"]`);
+    if (inp?.value.trim()) {
+      const { error: se } = await sb.rpc('ts_save_secret', { p_key: net.secret, p_value: inp.value.trim() });
+      if (!se) guardados++;
+    }
+  }
+  btn.disabled = false;
+  toast(guardados ? `Redes guardadas · ${guardados} credencial(es) asegurada(s)` : 'Redes guardadas');
+  renderSocial();
+});
 
 /* ---------------- usuarios y roles ---------------- */
 const ROLE_LABEL = { admin: 'Administrador', operador: 'Operador', transportista: 'Transportista', cliente: 'Cliente' };

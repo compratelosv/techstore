@@ -1,5 +1,5 @@
 /* account.js — registro, ingreso, perfil y pedidos del cliente */
-import { sb, money, esc, toast, mountHeader, getUser, getProfile, errMessage, fmtDate, STATUS_LABEL } from './core.js?v=5214a642';
+import { sb, money, esc, toast, mountHeader, getUser, getProfile, errMessage, fmtDate, STATUS_LABEL } from './core.js?v=64144037';
 
 const authView = document.getElementById('authView');
 const accountView = document.getElementById('accountView');
@@ -48,6 +48,9 @@ authForm.addEventListener('submit', async (e) => {
         return;
       }
       toast('Cuenta creada. ¡Bienvenido!');
+      const { data: cupones } = await sb.rpc('ts_my_coupons');
+      const c = (cupones || [])[0];
+      if (c) toast(`Tenés un cupón de bienvenida: ${c.code} (${c.discount_value}% en tu primera compra)`);
     } else {
       const { error } = await sb.auth.signInWithPassword({ email, password });
       if (error) throw error;
@@ -146,7 +149,68 @@ async function render() {
   document.getElementById('pName').value = profile?.full_name || user.user_metadata?.full_name || '';
   document.getElementById('pPhone').value = profile?.phone || '';
 
+  const st = document.getElementById('phoneStatus');
+  if (profile?.phone_verified) {
+    st.textContent = '✓ Número verificado';
+    st.style.color = 'var(--ok, #4ec9a5)';
+  } else {
+    st.textContent = 'Sin verificar — no podrás comprar hasta confirmarlo';
+    st.style.color = 'var(--bad, #f06b6b)';
+  }
+  if (profile?.phone) document.getElementById('vPhone').value = profile.phone;
+
+  await renderCoupons();
   await renderOrders(user);
 }
+
+async function renderCoupons() {
+  const { data } = await sb.rpc('ts_my_coupons');
+  const list = data || [];
+  let host = document.getElementById('myCoupons');
+  if (!host) {
+    host = document.createElement('div');
+    host.id = 'myCoupons';
+    document.getElementById('profileForm').after(host);
+  }
+  if (!list.length) { host.innerHTML = ''; return; }
+  host.innerHTML = `<div class="panel" style="max-width:460px;margin-top:1rem;border-color:var(--accent,#6ea8fe)">
+    <b style="font-size:.9rem">Tus cupones</b>
+    ${list.map((c) => `<div class="row" style="justify-content:space-between;padding:.35rem 0">
+      <div><div class="mono">${esc(c.code)}</div>
+        <div class="small muted">${c.discount_type === 'percent' ? c.discount_value + '%' : money(c.discount_value)} · usos ${c.uses}/${c.max_uses}${c.ends_at ? ' · vence ' + fmtDate(c.ends_at) : ''}</div></div>
+    </div>`).join('')}
+  </div>`;
+}
+
+/* ---------- verificación de WhatsApp ---------- */
+document.getElementById('vSend').addEventListener('click', async (e) => {
+  const btn = e.currentTarget;
+  const phone = document.getElementById('vPhone').value.trim();
+  if (!phone) return toast('Escribe tu número', 'err');
+  btn.disabled = true;
+  const { data, error } = await sb.rpc('ts_request_phone_code', { p_phone: phone });
+  btn.disabled = false;
+  if (error) return toast(errMessage(error), 'err');
+  document.getElementById('vCodeBox').hidden = false;
+  const mode = document.getElementById('vMode');
+  mode.textContent = data.mode === 'demo'
+    ? `Modo prueba: tu código es ${data.demo_code}`
+    : 'Te lo enviamos por WhatsApp';
+  mode.style.color = data.mode === 'demo' ? 'var(--warn,#e3b341)' : 'var(--muted)';
+  if (data.mode === 'demo') document.getElementById('vCode').value = data.demo_code;
+  toast('Código generado');
+});
+
+document.getElementById('vConfirm').addEventListener('click', async (e) => {
+  const btn = e.currentTarget;
+  const code = document.getElementById('vCode').value.trim();
+  if (!code) return toast('Escribe el código', 'err');
+  btn.disabled = true;
+  const { error } = await sb.rpc('ts_confirm_phone_code', { p_code: code });
+  btn.disabled = false;
+  if (error) return toast(errMessage(error), 'err');
+  toast('¡WhatsApp verificado! Ya podés comprar.');
+  render();
+});
 
 render().catch((err) => toast(errMessage(err), 'err'));

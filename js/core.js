@@ -78,6 +78,7 @@ export const STATUS_LABEL = {
   listo: 'Listo para entrega',
   en_ruta: 'En ruta',
   entregado: 'Entregado',
+  no_show: 'No se presentó',
   cancelado: 'Cancelado',
   reembolsado: 'Reembolsado',
 };

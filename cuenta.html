@@ -59,15 +59,36 @@
         <input id="pName" autocomplete="name">
       </div>
       <div class="field">
-        <label for="pPhone">Teléfono</label>
-        <input id="pPhone" inputmode="tel" autocomplete="tel">
+        <label for="pPhone">Teléfono de WhatsApp</label>
+        <input id="pPhone" inputmode="tel" autocomplete="tel" placeholder="7000 0000">
+        <span class="hint" id="phoneStatus">—</span>
       </div>
       <button class="btn primary" type="submit">Guardar datos</button>
     </form>
+
+    <h2 id="whatsapp" style="font-size:1.25rem;margin-top:2rem">Verificar WhatsApp</h2>
+    <div class="panel" style="max-width:460px">
+      <p class="small muted" style="margin-top:0">
+        Necesario para comprar: por ahí te avisamos del día de entrega. Escribe tu número, pide el código y confírmalo.
+      </p>
+      <div class="field">
+        <label for="vPhone">Número (8 dígitos)</label>
+        <input id="vPhone" inputmode="tel" placeholder="7123 4567">
+      </div>
+      <button class="btn" id="vSend" type="button" style="width:100%">Enviar código</button>
+      <div id="vCodeBox" hidden style="margin-top:.8rem">
+        <div class="field">
+          <label for="vCode">Código de 6 dígitos</label>
+          <input id="vCode" inputmode="numeric" maxlength="6" placeholder="000000">
+          <span class="hint" id="vMode"></span>
+        </div>
+        <button class="btn primary" id="vConfirm" type="button" style="width:100%">Confirmar código</button>
+      </div>
+    </div>
   </section>
 </main>
 
 <script src="vendor/supabase.js"></script>
-<script type="module" src="js/account.js?v=b15dad3d"></script>
+<script type="module" src="js/account.js?v=a20f1dfd"></script>
 </body>
 </html>

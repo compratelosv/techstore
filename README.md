@@ -47,6 +47,35 @@ Son cuentas de sandbox con correo ya confirmado. **Las contraseñas no se guarda
 - **Reparto a domicilio** (transportista): se le asigna un pedido desde Preparación; en su panel ve solo **sus** entregas **del día** (más pestañas de pendientes de días anteriores e historial) con dirección, teléfono, bultos e importe, avisa "salir a ruta" y confirma la entrega. Su cuenta no tiene acceso a pedidos ajenos, inventario, costos, ventas, clientes ni configuración.
 - **Escaneo de bultos en la entrega**: el transportista escanea con la cámara del teléfono la etiqueta de cada producto (SKU o código de barras) o la etiqueta del pedido, y el sistema lleva la cuenta `1/2`. **No puede marcar "Entregado" hasta escanear todos los bultos**, y cada lectura queda registrada con fecha y usuario. El permiso se puede apagar por usuario desde Usuarios → columna "Escaneo".
 - **Caja por turno** (admin y operador): apertura con fondo inicial, ventas en efectivo del turno, ingresos/egresos/retiros, **arqueo por denominación** al cerrar y diferencia (sobrante o faltante). Sin caja abierta el POS no puede cobrar.
+- **Promociones y cupones** (admin): cupones por código con porcentaje o monto fijo, compra mínima, vigencia, tope de usos, alcance (todo el catálogo o **productos elegidos**) y restricción a clientes nuevos. **Todo cliente nuevo recibe automáticamente un cupón de bienvenida del 10%** (90 días, primera compra). El cupón se valida en el servidor y se quema solo al confirmarse el pago.
+- **WhatsApp verificado (obligatorio para comprar)**: el cliente pide un código de 6 dígitos, lo confirma y queda marcado como verificado. Si cambia el teléfono, vuelve a quedar sin verificar. **Modo demo**: el código se muestra en pantalla; en producción se envía por WhatsApp Business.
+- **Entregas en puntos fijos con cita**: Metrocentro 8ª etapa y Plaza Merliot (food court), **miércoles y sábado**, franjas de 30 minutos (9:00–11:30 y 14:00–17:00) con **un cliente por franja**. El checkout reserva la franja en la misma transacción del pedido.
+- **Confirmación, inasistencia y reagenda**: aviso por WhatsApp a las 7:00 a.m. del día de entrega con enlace para confirmar (`cita.html?t=token`). Si no llega, el staff marca **"No se presentó"** y el cliente puede **reagendar una vez**; a la segunda inasistencia el pedido se cancela con **retención del 20%**.
+- **Términos y privacidad**: `terminos.html` y `privacidad.html`. La compra **exige aceptar** los términos (se guarda `terms_accepted_at` en el pedido) y el servidor rechaza pedidos sin aceptación.
+- **Redes sociales y APIs** (admin): Instagram, Facebook, TikTok y WhatsApp Business con enlace, usuario, interruptor de visibilidad y campos de App ID / Client Secret listos para conectar APIs.
+
+## Seguridad de las credenciales de integración
+
+Los secretos **no** se guardan en `ts_settings` ni en tablas legibles por el navegador:
+
+- Viven en `ts_secrets`, una tabla con RLS activo y **sin políticas** (0 filas por API, ni siquiera con sesión).
+- Solo se escriben y consultan por funciones `security definer` que exigen rol admin, y **nunca devuelven el valor**, solo si está configurado.
+- La UI muestra `••••••••` y un aviso "guardado ✓"; no hay forma de leer el secreto desde el frontend.
+- Recomendación para producción: mover esos valores a **Supabase Vault** o a variables de entorno de una **Edge Function**, y llamar a las APIs externas desde el servidor (nunca desde el navegador), con tokens de corta duración.
+
+## Cómo funciona la cita
+
+```
+checkout → elige punto + franja (se reserva al crear el pedido)
+   ↓
+7:00 a.m. del día → mensaje con enlace de confirmación
+   ↓
+confirma → llega → entregado      no llega → no_show
+                                        ↓
+                              reagendar (1 vez) → nueva franja
+                                        ↓
+                              segunda inasistencia → cancelado, retención 20%
+```
 
 ## Cómo funciona la caja
 

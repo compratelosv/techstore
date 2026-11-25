@@ -1,5 +1,5 @@
 /* sticker.js — etiqueta imprimible del pedido (QR + SKUs) */
-import { sb, esc, toast, errMessage, getUser, fmtDate } from './core.js?v=5214a642';
+import { sb, esc, toast, errMessage, getUser, fmtDate } from './core.js?v=64144037';
 
 const host = document.getElementById('labelHost');
 const id = new URLSearchParams(location.search).get('id');
