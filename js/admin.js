@@ -818,8 +818,13 @@ function renderKanban() {
               <div class="items">${(o.ts_order_items || []).map((i) => `${esc(i.sku)} ×${i.qty}`).join(' · ')}</div>
               <div class="items">${esc(o.customer_name)} · ${fmtDate(o.created_at)}</div>
               ${o.fulfillment === 'envio' ? `
-                <button class="btn sm ghost" style="margin-top:.4rem;width:100%" data-assign="${o.id}">
-                  🛵 ${o.courier_id ? esc(courierName(o.courier_id) || 'Asignado') : 'Asignar repartidor'}
+                <button class="btn sm ghost courier-btn ${o.courier_id ? 'assigned' : ''}" style="margin-top:.4rem;width:100%" data-assign="${o.id}">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <circle cx="5.5" cy="17" r="2.6"/><circle cx="18.5" cy="17" r="2.6"/>
+                    <path d="M8.1 17h7.8"/><path d="M15.5 17l-1.8-6.4H9.2L7.8 14"/>
+                    <path d="M13.7 10.6h2.6l2.2 3.4"/>
+                  </svg>
+                  <span>${o.courier_id ? esc(courierName(o.courier_id) || 'Asignado') : 'Asignar repartidor'}</span>
                 </button>` : ''}
             </div>`).join('') || '<p class="small muted">Nada pendiente.</p>'}
         </div>`;
