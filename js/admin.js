@@ -79,7 +79,7 @@ async function boot() {
     .maybeSingle();
 
   if (error) toast(errMessage(error), 'err');
-  if (!profile || !['admin', 'operador', 'transportista', 'community_manager'].includes(profile.role)) {
+  if (!profile || !['admin', 'operador', 'cajero', 'transportista', 'community_manager'].includes(profile.role)) {
     await sb.auth.signOut();
     $('#loginWrap').classList.remove('hidden');
     toast('Esa cuenta no tiene permisos de panel.', 'err');
@@ -110,7 +110,16 @@ async function boot() {
   const isAdmin = profile.role === 'admin';
   const isCourier = profile.role === 'transportista';
   const isCM = profile.role === 'community_manager';
+  const isCashier = profile.role === 'cajero';
   const canMarketing = isAdmin || isCM;
+  // El cajero solo ve sala de ventas: POS, caja y clientes.
+  if (isCashier) {
+    const allowed = ['pos', 'cash', 'customers'];
+    $$('#sideNav button').forEach((b) => b.classList.toggle('hidden', !allowed.includes(b.dataset.view)));
+    $$('.nav-group').forEach((g) => {
+      g.hidden = g.querySelectorAll('button:not(.hidden)').length === 0;
+    });
+  }
   $('#navUsers').classList.toggle('hidden', !isAdmin);
   $('#navPromos').classList.toggle('hidden', !isAdmin);
   $('#navSuppliers').classList.toggle('hidden', !isAdmin);
@@ -153,7 +162,9 @@ async function boot() {
   initRequisitions(isAdmin);
   initIncidents(isAdmin);
   const target = viewFromHash();
-  if (target === 'deliveries' || (target === 'users' && !isAdmin)) {
+  if (isCashier) {
+    setView(['pos', 'cash', 'customers'].includes(target) ? target : 'pos');
+  } else if (target === 'deliveries' || (target === 'users' && !isAdmin)) {
     setView('orders');
   } else {
     setView(target);
@@ -277,7 +288,12 @@ function setView(view, { syncHash = true } = {}) {
   // Solo el CEO entra a inventario, promos, proveedores, usuarios y configuración,
   // aunque escriba el hash a mano.
   if (state.profile?.role !== 'admin' && ['inventory', 'promos', 'suppliers', 'users', 'settings'].includes(view)) {
-    view = 'orders';
+    view = state.profile?.role === 'cajero' ? 'pos' : 'orders';
+    syncHash = true;
+  }
+  // El cajero no sale de sala de ventas.
+  if (state.profile?.role === 'cajero' && !['pos', 'cash', 'customers'].includes(view)) {
+    view = 'pos';
     syncHash = true;
   }
   state.view = view;
@@ -2746,7 +2762,7 @@ $('#socialSave').addEventListener('click', async (e) => {
 });
 
 /* ---------------- usuarios y roles ---------------- */
-const ROLE_LABEL = { admin: 'Administrador', operador: 'Operador', transportista: 'Transportista', community_manager: 'Community manager', cliente: 'Cliente' };
+const ROLE_LABEL = { admin: 'Administrador', operador: 'Operador', cajero: 'Cajero', transportista: 'Transportista', community_manager: 'Community manager', cliente: 'Cliente' };
 
 function randomPassword(len = 12) {
   const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
@@ -3052,7 +3068,9 @@ $('#btnNewUser').addEventListener('click', () => {
           <label for="uRole">Rol *</label>
           <select id="uRole">
             <option value="operador" selected>Operador — ventas y logística</option>
+            <option value="cajero">Cajero / Dependienta — solo POS, caja y clientes</option>
             <option value="transportista">Transportista — solo sus entregas</option>
+            <option value="community_manager">Community manager — solo crecimiento</option>
             <option value="admin">Administrador — acceso total</option>
           </select>
         </div>

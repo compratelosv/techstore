@@ -101,6 +101,36 @@ abrir (fondo) → vender en POS → ingresos / egresos / retiros → cerrar (arq
 - El cierre guarda el **conteo por denominación** (de $100 a 1¢) y la diferencia; queda en el historial con el nombre de quién abrió el turno.
 - El cobro exige caja abierta **en el servidor**, no solo en la pantalla: una llamada directa a `ts_confirm_payment` para un pedido POS sin turno devuelve error y el pedido sigue pendiente.
 
+## Roles y permisos por módulo
+
+| Rol | Ve en el panel |
+|---|---|
+| `admin` (CEO) | todo |
+| `operador` | pedidos, preparación, POS, caja, calendario, cotizaciones, clientes, ventas, crecimiento · **sin** requisiciones, contingencias, inventario, promos, proveedores, usuarios ni configuración |
+| `cajero` (dependienta) | **solo** punto de venta, caja y clientes |
+| `transportista` | solo *mis entregas* |
+| `community_manager` | solo crecimiento (marketing, calendario editorial, contenido, métricas) |
+| `cliente` | nada del panel; compra en la tienda |
+
+El menú no es la única barrera. Hay tres capas:
+
+1. **Menú**: se ocultan los botones que no corresponden.
+2. **Hash a mano**: `setView` valida el rol; si el cajero escribe `#inventory`, vuelve a `#pos` y corrige la URL.
+3. **Base de datos**: las RLS mandan. `ts_is_manager()` (admin + operador) para gestión; `ts_is_staff()` (admin + operador + cajero) para operación. El cajero **no puede** escribir productos, inventario ni proveedores aunque llame la API directamente.
+
+Además, el cajero solo ve **pedidos del canal POS**: los pedidos de la tienda en línea no le aparecen, ni por pantalla ni por API.
+
+Permisos verificados con una cuenta de prueba (`cajera@techstore.test`):
+
+| Prueba | Resultado |
+|---|---|
+| Login y menú | solo Operación: Punto de venta, Caja, Clientes ✅ |
+| Intento de `UPDATE ts_products` por API | **0 filas**, stock intacto ✅ |
+| Lectura de costos e inventario | 0 filas ✅ |
+| Pedidos de tienda en línea | 0 visibles ✅ |
+| Forzar `#inventory` | devuelto a `#pos` ✅ |
+| Abrir caja y cobrar | venta realizada y documento emitido ✅ |
+
 ## Motor de promociones
 
 Una promo tiene **tipo** (`kind`) y **alcance** (`scope`):
