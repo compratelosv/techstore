@@ -345,6 +345,21 @@ async function charge() {
   const customerName = ($('#posName').value || '').trim() || 'Consumidor final';
   const method = $('#posMethod').value;
 
+  // Sin caja abierta no se puede cobrar: el efectivo no se podría arquear.
+  const { data: cash, error: cashErr } = await api.sb.rpc('ts_cash_current');
+  if (cashErr) {
+    api.toast(api.errMessage(cashErr), 'err');
+    btn.disabled = false;
+    btn.textContent = 'Cobrar';
+    return;
+  }
+  if (!cash) {
+    api.toast('Abre la caja antes de cobrar (menú Caja)', 'err');
+    btn.disabled = false;
+    btn.textContent = 'Cobrar';
+    return;
+  }
+
   const { data: order, error } = await api.sb.rpc('ts_place_order', {
     p_items: cart.map((i) => ({ product_id: i.id, qty: i.qty })),
     p_fulfillment: 'retiro',

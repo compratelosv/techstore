@@ -45,6 +45,19 @@ Son cuentas de sandbox con correo ya confirmado. **Las contraseñas no se guarda
 - **Clientes** (admin y operador): consolidado por cuenta con pedidos, gasto acumulado, ticket promedio, última compra y búsqueda por nombre/correo/teléfono. Ficha con historial completo, direcciones y **notas internas** del equipo.
 - **Proveedores y compras** (solo administrador, porque muestra costos): catálogo de proveedores con contacto y NIT; registro de compras **pendientes** que, al recibirlas, suman stock, dejan movimiento de inventario `entrada` y actualizan el costo del producto (base del margen).
 - **Reparto a domicilio** (transportista): se le asigna un pedido desde Preparación; en su panel ve solo **sus** entregas con dirección, teléfono, bultos e importe, avisa "salir a ruta" y confirma la entrega. Su cuenta no tiene acceso a pedidos ajenos, inventario, costos, ventas, clientes ni configuración.
+- **Caja por turno** (admin y operador): apertura con fondo inicial, ventas en efectivo del turno, ingresos/egresos/retiros, **arqueo por denominación** al cerrar y diferencia (sobrante o faltante). Sin caja abierta el POS no puede cobrar.
+
+## Cómo funciona la caja
+
+```
+abrir (fondo) → vender en POS → ingresos / egresos / retiros → cerrar (arqueo) → diferencia
+```
+
+- Cada venta del POS queda atada a la **caja abierta de quien cobra** (`ts_orders.cash_session_id`).
+- Solo hay **una caja abierta por usuario** (índice único parcial).
+- Lo esperado en el cajón = `fondo + ventas en efectivo + ingresos − egresos − retiros`. Los pagos con tarjeta o transferencia **no** suman al efectivo.
+- El cierre guarda el **conteo por denominación** (de $100 a 1¢) y la diferencia; queda en el historial con el nombre de quién abrió el turno.
+- El cobro exige caja abierta **en el servidor**, no solo en la pantalla: una llamada directa a `ts_confirm_payment` para un pedido POS sin turno devuelve error y el pedido sigue pendiente.
 
 ## Flujo de reparto
 

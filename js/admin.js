@@ -1,6 +1,6 @@
 /* admin.js — shell del panel: pedidos, preparación e inventario */
 import { sb, money, esc, toast, fmtDate, errMessage, STATUS_LABEL, getUser, loadCurrency, getCurrency } from './core.js?v=5214a642';
-import { initPos, scanOnce } from './pos.js?v=90cba46c';
+import { initPos, scanOnce } from './pos.js?v=45262f10';
 import { Scanner } from './scanner.js?v=90ef2e67';
 
 /* ---------------- estado ---------------- */
@@ -23,6 +23,7 @@ const state = {
   purchases: [],
   couriers: [],
   delFilter: 'activas',
+  cash: null,
 };
 
 const $ = (s) => document.querySelector(s);
@@ -161,6 +162,7 @@ const TITLES = {
   orders: ['Pedidos', 'Todo lo que entró por la tienda y por el punto de venta'],
   fulfillment: ['Preparación', 'Lo que hay que embalar y entregar, por etapa'],
   pos: ['Punto de venta', 'Venta presencial: descuenta inventario al cobrar'],
+  cash: ['Caja', 'Turno abierto, arqueo y diferencia'],
   sales: ['Ventas', 'Ingresos, ticket promedio, margen y productos más vendidos'],
   quotes: ['Cotizaciones', 'Propuestas de precio para clientes, listas para enviar'],
   deliveries: ['Mis entregas', 'Pedidos asignados a ti: sal a ruta y marca la entrega'],
@@ -176,6 +178,7 @@ const HASH_TO_VIEW = {
   pedidos: 'orders', orders: 'orders',
   preparacion: 'fulfillment', fulfillment: 'fulfillment',
   pos: 'pos',
+  caja: 'cash', cash: 'cash',
   cotizaciones: 'quotes', quotes: 'quotes',
   entregas: 'deliveries', deliveries: 'deliveries',
   clientes: 'customers', customers: 'customers',
@@ -186,7 +189,7 @@ const HASH_TO_VIEW = {
   inventario: 'inventory', inventory: 'inventory',
 };
 const VIEW_TO_HASH = {
-  orders: 'pedidos', fulfillment: 'preparacion', pos: 'pos', quotes: 'cotizaciones',
+  orders: 'pedidos', fulfillment: 'preparacion', pos: 'pos', cash: 'caja', quotes: 'cotizaciones',
   deliveries: 'entregas',
   customers: 'clientes', suppliers: 'proveedores',
   sales: 'ventas', users: 'usuarios', settings: 'configuracion', inventory: 'inventario',
@@ -200,7 +203,7 @@ function viewFromHash() {
 function setView(view, { syncHash = true } = {}) {
   state.view = view;
   $$('#sideNav button').forEach((b) => b.classList.toggle('active', b.dataset.view === view));
-  ['orders', 'fulfillment', 'deliveries', 'pos', 'quotes', 'customers', 'suppliers', 'sales', 'users', 'settings', 'inventory'].forEach((v) => {
+  ['orders', 'fulfillment', 'deliveries', 'pos', 'cash', 'quotes', 'customers', 'suppliers', 'sales', 'users', 'settings', 'inventory'].forEach((v) => {
     $(`#view-${v}`).classList.toggle('hidden', v !== view);
   });
   $('#viewTitle').textContent = TITLES[view][0];
@@ -214,6 +217,7 @@ function setView(view, { syncHash = true } = {}) {
   if (view === 'deliveries') renderDeliveries();
   if (view === 'inventory') renderInventory();
   if (view === 'pos') renderPos();
+  if (view === 'cash') renderCash();
   if (view === 'sales') renderSales();
   if (view === 'quotes') renderQuotes();
   if (view === 'customers') renderCustomers();
@@ -632,6 +636,207 @@ $('#delList').addEventListener('click', async (e) => {
   if (error) return toast(errMessage(error), 'err');
   toast(status === 'en_ruta' ? 'Marcado en ruta' : 'Entrega confirmada');
   renderDeliveries();
+});
+
+/* ---------------- caja / arqueo ---------------- */
+const CASH_KIND = { ingreso: 'Ingreso', egreso: 'Egreso', retiro: 'Retiro' };
+const BILLS = [
+  [100, 'Billete \$100'], [50, 'Billete \$50'], [20, 'Billete \$20'],
+  [10, 'Billete \$10'], [5, 'Billete \$5'], [2, 'Billete \$2'], [1, 'Billete \$1'],
+  [0.5, 'Moneda 50¢'], [0.25, 'Moneda 25¢'], [0.1, 'Moneda 10¢'],
+  [0.05, 'Moneda 5¢'], [0.01, 'Moneda 1¢'],
+];
+
+async function renderCash() {
+  const [{ data: cur, error }, { data: hist }] = await Promise.all([
+    sb.rpc('ts_cash_current'),
+    sb.rpc('ts_cash_list', { p_limit: 20 }),
+  ]);
+  if (error) return toast(errMessage(error), 'err');
+
+  state.cash = cur || null;
+  drawCashHistory(hist || []);
+
+  if (!cur) {
+    $('#cashClosed').classList.remove('hidden');
+    $('#cashOpenView').classList.add('hidden');
+    return;
+  }
+
+  $('#cashClosed').classList.add('hidden');
+  $('#cashOpenView').classList.remove('hidden');
+
+  const s = cur.session;
+  const t = cur.summary;
+  const dif = Number(t.expected) - Number(s.opening_amount);
+
+  $('#cashKpis').innerHTML = `
+    <div class="kpi"><span class="k-label">Fondo inicial</span><b>${money(s.opening_amount)}</b><span class="k-sub">${esc(s.code)}</span></div>
+    <div class="kpi"><span class="k-label">Ventas en efectivo</span><b>${money(t.cash_sales)}</b><span class="k-sub">${t.sales_count} ventas</span></div>
+    <div class="kpi"><span class="k-label">Otros medios</span><b>${money(t.other_sales)}</b><span class="k-sub">no entran a la caja</span></div>
+    <div class="kpi"><span class="k-label">Debería haber</span><b style="color:var(--accent,#6ea8fe)">${money(t.expected)}</b><span class="k-sub">${t.ingresos > 0 ? '+' + money(t.ingresos) + ' ingresos ' : ''}${t.egresos > 0 ? '−' + money(t.egresos) + ' egresos ' : ''}${t.retiros > 0 ? '−' + money(t.retiros) + ' retiros' : ''}</span></div>`;
+
+  const orders = cur.orders || [];
+  $('#cashOrders').innerHTML = orders.length
+    ? orders.map((o) => `<div class="line" style="grid-template-columns:1fr auto;padding:.45rem 0">
+        <div><div class="tl-name">${esc(o.code)}</div>
+             <div class="tl-sub">${fmtDate(o.created_at)} · ${esc(o.provider || '—')} · ${esc(o.customer_name || '')}</div></div>
+        <b>${money(o.total)}</b>
+      </div>`).join('')
+    : '<p class="small muted">Aún no hay ventas en este turno.</p>';
+
+  const movs = cur.movements || [];
+  $('#cashMovs').innerHTML = movs.length
+    ? movs.map((m) => `<div class="line" style="grid-template-columns:1fr auto;padding:.4rem 0">
+        <div><div class="tl-name">${CASH_KIND[m.kind] || m.kind}</div>
+             <div class="tl-sub">${esc(m.reason || '')} · ${fmtDate(m.created_at)}</div></div>
+        <b style="color:${m.kind === 'ingreso' ? 'var(--ok,#4ec9a5)' : 'var(--bad,#f06b6b)'}">
+          ${m.kind === 'ingreso' ? '+' : '−'}${money(m.amount)}</b>
+      </div>`).join('')
+    : '<p class="small muted">Sin movimientos.</p>';
+}
+
+function drawCashHistory(list) {
+  $('#cashHistory').innerHTML = list.length
+    ? list.map((s) => {
+        const d = s.difference === null ? null : Number(s.difference);
+        const tone = d === null ? '' : d === 0 ? 'var(--muted)' : d > 0 ? 'var(--ok,#4ec9a5)' : 'var(--bad,#f06b6b)';
+        return `<div class="line" style="grid-template-columns:1fr auto;padding:.5rem 0">
+          <div>
+            <div class="tl-name">${esc(s.code)} · ${esc(s.opened_by_name || '')}
+              <span class="badge ${s.status === 'abierta' ? 'pagado' : 'entregado'}">${s.status}</span></div>
+            <div class="tl-sub">${fmtDate(s.opened_at)} → ${s.closed_at ? fmtDate(s.closed_at) : 'abierta'}
+              · ventas ${money(s.sales_total)}</div>
+          </div>
+          <div style="text-align:right">
+            ${s.expected_amount !== null
+              ? `<b style="color:${tone}">${d === 0 ? 'cuadrada' : (d > 0 ? '+' : '') + money(d)}</b>
+                 <div class="small muted">esperado ${money(s.expected_amount)} · contado ${money(s.counted_amount)}</div>`
+              : `<span class="small muted">en curso</span>`}
+          </div>
+        </div>`;
+      }).join('')
+    : '<p class="small muted">Todavía no hay turnos cerrados.</p>';
+}
+
+$('#btnOpenCash').addEventListener('click', async (e) => {
+  const btn = e.currentTarget;
+  const opening = Number($('#cashOpening').value || 0);
+  btn.disabled = true;
+  const { error } = await sb.rpc('ts_cash_open', {
+    p_opening: opening,
+    p_notes: $('#cashNotes').value.trim() || null,
+  });
+  btn.disabled = false;
+  if (error) return toast(errMessage(error), 'err');
+  toast('Caja abierta');
+  renderCash();
+});
+
+$('#view-cash').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-cash-mov]');
+  if (b) openCashMovement(b.dataset.cashMov);
+});
+
+function openCashMovement(kind) {
+  const label = CASH_KIND[kind] || kind;
+  openDrawer({
+    title: `${label} de efectivo`,
+    subtitle: kind === 'ingreso' ? 'Entra dinero a la caja' : kind === 'egreso' ? 'Sale dinero para un gasto' : 'Sacas efectivo hacia la bóveda',
+    body: `<div class="panel">
+      <div class="field"><label for="movAmount">Monto *</label>
+        <input id="movAmount" type="number" min="0.01" step="0.01" inputmode="decimal" autofocus></div>
+      <div class="field"><label for="movReason">Motivo</label>
+        <input id="movReason" placeholder="${kind === 'ingreso' ? 'Cambio, abono de cliente…' : kind === 'egreso' ? 'Compra de bolsas, flete…' : 'Depósito al banco'}"></div>
+    </div>`,
+    foot: `<button class="btn primary" id="movSave">Registrar</button>
+           <button class="btn ghost" id="movCancel">Cancelar</button>`,
+  });
+  $('#movCancel').onclick = closeDrawer;
+  $('#movSave').onclick = async (e) => {
+    const amount = Number($('#movAmount').value || 0);
+    if (!(amount > 0)) return toast('Escribe un monto mayor que cero', 'err');
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    const { error } = await sb.rpc('ts_cash_movement', {
+      p_kind: kind, p_amount: amount, p_reason: $('#movReason').value.trim() || null,
+    });
+    btn.disabled = false;
+    if (error) return toast(errMessage(error), 'err');
+    toast(`${label} registrado`);
+    closeDrawer();
+    renderCash();
+  };
+}
+
+$('#btnCloseCash').addEventListener('click', () => {
+  const expected = Number(state.cash?.summary?.expected || 0);
+
+  openDrawer({
+    title: 'Cerrar caja · arqueo',
+    subtitle: `Debería haber ${money(expected)} en efectivo`,
+    body: `
+      <div class="panel" style="margin-bottom:.8rem">
+        <h3 style="margin-top:0">Conteo por denominación</h3>
+        <div id="billRows">
+          ${BILLS.map(([v, label]) => `
+            <div class="row" style="justify-content:space-between;gap:.5rem;padding:.2rem 0">
+              <span class="small">${label}</span>
+              <input type="number" min="0" step="1" value="0" data-bill="${v}"
+                     style="width:84px" inputmode="numeric" aria-label="${label}">
+              <span class="small muted" data-sub="${v}" style="width:78px;text-align:right">$0.00</span>
+            </div>`).join('')}
+        </div>
+        <div class="pos-total" style="margin-top:.6rem"><span>Total contado</span><span id="countedTotal">$0.00</span></div>
+        <div class="small" id="cashDiff" style="margin-top:.3rem"></div>
+      </div>
+      <div class="panel">
+        <div class="field"><label for="closeNotes">Notas del cierre</label>
+          <input id="closeNotes" placeholder="Ej: faltó cambio, propina…"></div>
+      </div>`,
+    foot: `<button class="btn primary" id="closeConfirm">Confirmar cierre</button>
+           <button class="btn ghost" id="closeCancel">Cancelar</button>`,
+  });
+
+  const recalc = () => {
+    let total = 0;
+    const breakdown = {};
+    BILLS.forEach(([v]) => {
+      const n = Number(document.querySelector(`[data-bill="${v}"]`)?.value || 0);
+      const sub = n * v;
+      breakdown[v] = n;
+      total += sub;
+      const el = document.querySelector(`[data-sub="${v}"]`);
+      if (el) el.textContent = n ? money(sub) : '—';
+    });
+    total = Math.round(total * 100) / 100;
+    $('#countedTotal').textContent = money(total);
+    const d = Math.round((total - expected) * 100) / 100;
+    $('#cashDiff').innerHTML = d === 0
+      ? '<span style="color:var(--ok,#4ec9a5)">Cuadra exacto ✓</span>'
+      : `<span style="color:${d > 0 ? 'var(--warn,#e3b341)' : 'var(--bad,#f06b6b)'}">
+           ${d > 0 ? 'Sobrante' : 'Faltante'} de ${money(Math.abs(d))}</span>`;
+    return { total, breakdown };
+  };
+
+  $('#billRows').addEventListener('input', recalc);
+  $('#closeCancel').onclick = closeDrawer;
+  $('#closeConfirm').onclick = async (e) => {
+    const { total, breakdown } = recalc();
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    const { data, error } = await sb.rpc('ts_cash_close', {
+      p_counted: total,
+      p_breakdown: breakdown,
+      p_notes: $('#closeNotes').value.trim() || null,
+    });
+    btn.disabled = false;
+    if (error) return toast(errMessage(error), 'err');
+    const d = Number(data.difference);
+    toast(d === 0 ? 'Caja cerrada: cuadra exacto' : `Caja cerrada con ${d > 0 ? 'sobrante' : 'faltante'} de ${money(Math.abs(d))}`);
+    closeDrawer();
+    renderCash();
+  };
 });
 
 /* ---------------- inventario ---------------- */
