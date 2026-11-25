@@ -6,7 +6,7 @@
 <title>TechStore SV · Tecnología que sí rinde</title>
 <meta name="description" content="Laptops, smartphones, audio y accesorios con entrega en todo El Salvador.">
 <link rel="icon" href="assets/favicon.svg">
-<link rel="stylesheet" href="css/tienda.css?v=2ffa364d">
+<link rel="stylesheet" href="css/tienda.css?v=aab7e311">
 </head>
 <body>
 
@@ -14,17 +14,43 @@
 
 <section class="hero">
   <div class="wrap hero-grid">
-    <div>
+    <div class="hero-copy">
       <span class="eyebrow">Envío a todo El Salvador</span>
-      <h1>Tecnología que sí rinde, sin pagar de más.</h1>
-      <p class="lead">Laptops, smartphones, audio y accesorios seleccionados. Envío por zona o retiro en tienda, y seguimiento del pedido hasta que lo tengas en tus manos.</p>
+      <h1>Tecnología que sí rinde,<br><em>sin pagar de más.</em></h1>
+      <p class="lead">Laptops, smartphones, audio y accesorios seleccionados. Recibes en tu casa o retiras en Metrocentro y Plaza Merliot, miércoles y sábado, con hora reservada.</p>
       <div class="actions">
         <a class="btn primary" href="#catalogo">Ver catálogo</a>
         <a class="btn ghost" href="cuenta.html">Mis pedidos</a>
       </div>
-      <p class="small muted" style="margin-top:1.2rem">Envío gratis desde $75 · Garantía de 6 meses · Pago seguro</p>
+      <ul class="hero-points">
+        <li>Envío gratis desde $75</li>
+        <li>Garantía de 6 meses</li>
+        <li>Retiro mié y sáb</li>
+      </ul>
     </div>
-    <div class="hero-visual"><span>24 productos<br>listos para enviar</span></div>
+
+    <aside class="hero-side">
+      <div class="hero-card" id="heroCard" hidden>
+        <a class="hc-media" id="heroLink" href="#catalogo" aria-label="Ver producto destacado">
+          <img id="heroImg" alt="" loading="eager">
+          <span class="hc-tag">Destacado</span>
+        </a>
+        <div class="hc-body">
+          <span class="hc-brand" id="heroBrand"></span>
+          <b class="hc-name" id="heroName"></b>
+          <p class="hc-desc" id="heroDesc"></p>
+          <div class="hc-foot">
+            <span class="hc-price" id="heroPrice"></span>
+            <a class="btn primary sm" id="heroGo" href="#catalogo">Ver</a>
+          </div>
+        </div>
+        <div class="hc-strip">
+          <div><b id="heroCount">—</b><small>productos</small></div>
+          <div><b>2 puntos</b><small>Metrocentro · Merliot</small></div>
+          <div><b>Envío</b><small>todo el país</small></div>
+        </div>
+      </div>
+    </aside>
   </div>
 </section>
 
@@ -50,6 +76,6 @@
 </footer>
 
 <script src="vendor/supabase.js"></script>
-<script type="module" src="js/storefront.js?v=1a346ce5"></script>
+<script type="module" src="js/storefront.js?v=b3648c89"></script>
 </body>
 </html>

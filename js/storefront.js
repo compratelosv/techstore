@@ -59,6 +59,30 @@ function render() {
   countEl.textContent = `${items.length} producto${items.length === 1 ? '' : 's'}`;
 }
 
+/** Tarjeta destacada del hero: el producto de mayor precio con stock. */
+function renderHero(all) {
+  const countBox = document.querySelector('#heroCount');
+  if (countBox) countBox.textContent = String(all.length);
+
+  const cardEl = document.querySelector('#heroCard');
+  if (!cardEl) return;
+  const pool = all.filter((p) => (p.stock ?? 0) > 0);
+  const star = (pool.length ? pool : all).slice().sort((a, b) => Number(b.price) - Number(a.price))[0];
+  if (!star) return;
+
+  const img = document.querySelector('#heroImg');
+  img.src = star.image_url || 'assets/img/placeholder.svg';
+  img.alt = star.name;
+  document.querySelector('#heroName').textContent = star.name;
+  document.querySelector('#heroBrand').textContent = star.brand || '';
+  document.querySelector('#heroDesc').textContent = star.description || '';
+  document.querySelector('#heroPrice').textContent = money(star.price);
+  const url = `producto.html?sku=${encodeURIComponent(star.sku)}`;
+  document.querySelector('#heroLink').href = url;
+  document.querySelector('#heroGo').href = url;
+  cardEl.hidden = false;
+}
+
 async function load() {
   const [cats, prods] = await Promise.all([
     sb.from('ts_categories').select('*').order('sort_order'),
@@ -77,6 +101,7 @@ async function load() {
     categories.map((c) => `<button class="chip" data-cat="${c.id}">${esc(c.name)}</button>`).join('');
 
   render();
+  renderHero(products);
 }
 
 /* ---------- eventos ---------- */
