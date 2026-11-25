@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Panel · TechStore SV</title>
 <link rel="icon" href="assets/favicon.svg">
-<link rel="stylesheet" href="css/admin.css?v=d0f766d0">
+<link rel="stylesheet" href="css/admin.css?v=64f90557">
 </head>
 <body>
 
@@ -356,10 +356,13 @@
 
     <!-- CONFIGURACIÓN -->
     <section id="view-settings" class="hidden">
-      <p class="small muted" style="margin:0 0 1rem">
-        Ajustes de gerencia. Solo el administrador puede abrir y guardar esta sección.
-      </p>
+      <nav class="tabs" id="settingsTabs" style="margin-bottom:1rem">
+        <button class="tab-btn active" data-stab="negocio">Negocio</button>
+        <button class="tab-btn" data-stab="apariencia">Apariencia</button>
+        <button class="tab-btn" data-stab="cobros">Cobros e integraciones</button>
+      </nav>
 
+      <div data-stab-panel="negocio">
       <div class="grid-2">
         <form class="panel" id="formCurrency">
           <h3>Moneda</h3>
@@ -469,7 +472,54 @@
           </div>
           <button class="btn primary" type="submit">Guardar ajustes</button>
         </form>
+      </div>
+      </div>
 
+      <div data-stab-panel="apariencia" class="hidden">
+        <div class="panel" style="max-width:680px">
+          <h3 style="margin-top:0">Tema de la página</h3>
+          <p class="small muted" style="margin-top:0">
+            Cómo se ve la tienda y el panel. Al guardar aplica al instante a todo el sitio, para ti y para los clientes.
+          </p>
+
+          <div class="grid-2" style="margin-top:.8rem">
+            <div class="field">
+              <label for="themeStore">Tienda (público)</label>
+              <select id="themeStore">
+                <option value="light">Claro</option>
+                <option value="dark">Oscuro</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="themeAdmin">Panel de administración</label>
+              <select id="themeAdmin">
+                <option value="dark">Oscuro</option>
+                <option value="light">Claro</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="grid-2" style="margin-top:.4rem">
+            <div>
+              <div class="small muted" style="margin-bottom:.3rem">Tienda</div>
+              <div id="prevStore" class="theme-prev"></div>
+            </div>
+            <div>
+              <div class="small muted" style="margin-bottom:.3rem">Panel</div>
+              <div id="prevAdmin" class="theme-prev"></div>
+            </div>
+          </div>
+
+          <div class="row" style="margin-top:.9rem;gap:.5rem">
+            <button class="btn primary" id="themeSave">Guardar tema</button>
+            <button class="btn ghost" id="themeReset">Restablecer</button>
+            <span class="small muted" id="themeMsg"></span>
+          </div>
+        </div>
+      </div>
+
+      <div data-stab-panel="cobros" class="hidden">
+        <div class="grid-2">
         <div class="panel">
           <div class="row" style="justify-content:space-between;margin-bottom:.6rem">
             <h3 style="margin:0">Cuentas bancarias</h3>
@@ -478,8 +528,7 @@
           <p class="small muted">Donde recibes el dinero de las ventas.</p>
           <div id="bankList"></div>
         </div>
-      </div>
-      <div class="panel" style="margin-top:1rem">
+      <div class="panel">
         <h3 style="margin-top:0">Redes sociales y APIs</h3>
         <p class="small muted" style="margin-top:0">
           Enlaces para la tienda y campos listos para conectar Meta / TikTok cuando tengas acceso.
@@ -489,6 +538,8 @@
         <div class="row" style="margin-top:.8rem;gap:.5rem">
           <button class="btn primary" id="socialSave">Guardar redes</button>
           <span class="small muted" id="socialMsg"></span>
+        </div>
+      </div>
         </div>
       </div>
     </section>
@@ -631,6 +682,6 @@
 <script src="vendor/zxing-library.min.js"></script>
 <script src="vendor/zxing-browser.min.js"></script>
 <script src="vendor/jsbarcode.min.js"></script>
-<script type="module" src="js/admin.js?v=ac8c0c02"></script>
+<script type="module" src="js/admin.js?v=6f9a7a0b"></script>
 </body>
 </html>

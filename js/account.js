@@ -1,5 +1,5 @@
 /* account.js — registro, ingreso, perfil y pedidos del cliente */
-import { sb, money, esc, toast, mountHeader, getUser, getProfile, errMessage, fmtDate, STATUS_LABEL } from './core.js?v=64144037';
+import { sb, money, esc, toast, mountHeader, getUser, getProfile, errMessage, fmtDate, STATUS_LABEL } from './core.js?v=ff7704d8';
 
 const authView = document.getElementById('authView');
 const accountView = document.getElementById('accountView');

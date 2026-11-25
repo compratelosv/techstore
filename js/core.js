@@ -31,6 +31,27 @@ export async function loadCurrency() {
   return CUR;
 }
 
+/* ---------- tema (claro / oscuro) ---------- */
+/** Aplica el tema guardado. La tienda y el panel tienen su propio ajuste. */
+export async function loadTheme() {
+  const isAdmin = !!document.getElementById('appShell');
+  let mode = isAdmin ? 'dark' : 'light';
+  try {
+    const { data } = await sb.from('ts_settings').select('value').eq('key', 'theme').maybeSingle();
+    const cfg = data?.value || {};
+    mode = (isAdmin ? cfg.admin : cfg.store) || mode;
+  } catch { /* se queda con el tema por defecto */ }
+  applyTheme(mode);
+  return mode;
+}
+
+export function applyTheme(mode) {
+  const root = document.documentElement;
+  if (mode === 'light' || mode === 'dark') root.dataset.theme = mode;
+  else delete root.dataset.theme;
+  return mode;
+}
+
 export const money = (v) => {
   if (v === null || v === undefined || v === '') return '—';
   const n = Number(v);
@@ -111,6 +132,7 @@ export async function mountHeader({ active = '' } = {}) {
   if (!el) return;
   const user = await getUser();
   await loadCurrency();
+  await loadTheme();
   const business = await loadBusinessName();
   const count = Number(localStorage.getItem('ts.cart.count') || 0);
 

@@ -1,9 +1,16 @@
-/* admin.css — panel operativo (oscuro) */
+/* admin.css — panel operativo (oscuro por defecto, admite tema claro) */
 :root{
   --bg:#0b1020; --bg-2:#121a30; --bg-3:#1a2440; --line:#25314e;
   --txt:#e8ecf6; --muted:#93a0bd; --accent:#6366f1; --accent-2:#4f46e5;
   --ok:#10b981; --warn:#f59e0b; --bad:#ef4444; --info:#38bdf8;
   --radius:13px;
+  color-scheme:dark;
+}
+:root[data-theme="light"]{
+  --bg:#f5f7fb; --bg-2:#ffffff; --bg-3:#eef2f9; --line:#dde3ee;
+  --txt:#111827; --muted:#5b667f; --accent:#4f46e5; --accent-2:#4338ca;
+  --ok:#047857; --warn:#b45309; --bad:#dc2626; --info:#0369a1;
+  color-scheme:light;
 }
 *{box-sizing:border-box}
 html,body{margin:0;padding:0;height:100%}
@@ -232,7 +239,12 @@ h3{font-size:.98rem}
   .table.stack-mobile td.num{font-variant-numeric:tabular-nums}
 }
 
-/* ---------- calendario de entregas ---------- */
+/* ---------- tema: vista previa en configuración ---------- */
+.theme-prev{border-radius:10px;overflow:hidden;border:1px solid var(--line);padding:.5rem;min-height:86px}
+.theme-prev .tp-bar{height:6px;border-radius:3px;margin-bottom:.35rem}
+.theme-prev .tp-row{display:flex;gap:.3rem;align-items:center}
+.theme-prev .tp-card{flex:1;height:26px;border-radius:6px}
+.theme-prev .tp-btn{height:14px;width:44px;border-radius:4px}
 .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
 .cal-dow{text-align:center;font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:800;padding:.3rem 0}
 .cal-cell{
@@ -241,8 +253,8 @@ h3{font-size:.98rem}
 }
 .cal-cell.off{opacity:.45}
 .cal-cell.today{outline:1px solid #6ea8fe}
-.cal-cell.delivery-day{background:#26314a;border-color:#3a4a68}
-.cal-cell.delivery-day .cal-num{color:#9dbcff;font-weight:800}
+.cal-cell.delivery-day{background:var(--bg-3);border-color:var(--line)}
+.cal-cell.delivery-day .cal-num{color:var(--accent);font-weight:800}
 .cal-num{font-size:.72rem;color:var(--muted);font-weight:700}
 .cal-chip{
   font-size:.66rem;line-height:1.25;border-radius:6px;padding:.15rem .3rem;

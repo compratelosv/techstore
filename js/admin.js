@@ -1,5 +1,5 @@
 /* admin.js — shell del panel: pedidos, preparación e inventario */
-import { sb, money, esc, toast, fmtDate, errMessage, STATUS_LABEL, getUser, loadCurrency, getCurrency } from './core.js?v=64144037';
+import { sb, money, esc, toast, fmtDate, errMessage, STATUS_LABEL, getUser, loadCurrency, loadTheme, applyTheme, getCurrency } from './core.js?v=ff7704d8';
 import { initPos, scanOnce, scanStream, stopScan, scanFeedback } from './pos.js?v=926d48b5';
 import { Scanner } from './scanner.js?v=90ef2e67';
 
@@ -76,6 +76,7 @@ async function boot() {
   $('#appShell').classList.remove('hidden');
   $('#adminBar').classList.remove('hidden');
   await loadCurrency();
+  await loadTheme();
   $('#sideWho').textContent = `${profile.email || user.email}`;
   // versión del código cargado: sirve para diagnosticar cachés viejas
   const own = Array.from(document.scripts).find((s) => s.src.includes('js/admin.js'));
@@ -179,7 +180,7 @@ const TITLES = {
   customers: ['Clientes', 'Quién compra, cuánto gasta y qué notas dejó el equipo'],
   suppliers: ['Proveedores', 'A quién le compras y qué mercancía viene en camino'],
   users: ['Usuarios', 'Quién entra al panel y con qué rol'],
-  settings: ['Configuración', 'Moneda, datos del negocio, impuestos y cuentas bancarias'],
+  settings: ['Configuración', 'Negocio, apariencia, cobros e integraciones'],
   inventory: ['Inventario', 'Stock, precios y movimientos'],
 };
 
@@ -1092,7 +1093,83 @@ async function renderSettings() {
     : '<p class="small muted">Sin cuentas registradas.</p>';
 
   await renderSocial();
+  await renderTheme();
 }
+
+/* ---------------- tema (claro / oscuro) ---------------- */
+const THEME_SCHEMES = {
+  store: {
+    light: { bg: '#f8fafc', card: '#ffffff', txt: '#0f172a', accent: '#4f46e5', line: '#e2e8f0' },
+    dark: { bg: '#0b1020', card: '#121a30', txt: '#e8ecf6', accent: '#818cf8', line: '#243049' },
+  },
+  admin: {
+    dark: { bg: '#0b1020', card: '#121a30', txt: '#e8ecf6', accent: '#6366f1', line: '#25314e' },
+    light: { bg: '#f5f7fb', card: '#ffffff', txt: '#111827', accent: '#4f46e5', line: '#dde3ee' },
+  },
+};
+
+function paintThemePrev(el, s) {
+  if (!el) return;
+  el.style.background = s.bg;
+  el.innerHTML = `
+    <div class="tp-bar" style="background:${s.accent};width:42%"></div>
+    <div class="tp-bar" style="background:${s.line};width:70%"></div>
+    <div class="tp-row">
+      <div class="tp-card" style="background:${s.card};border:1px solid ${s.line}"></div>
+      <div class="tp-card" style="background:${s.card};border:1px solid ${s.line}"></div>
+    </div>
+    <div class="tp-row" style="margin-top:.35rem">
+      <div class="tp-btn" style="background:${s.accent}"></div>
+      <span style="font-size:.62rem;color:${s.txt}">Así se ve el texto</span>
+    </div>`;
+}
+
+async function renderTheme() {
+  const { data, error } = await sb.from('ts_settings').select('value').eq('key', 'theme').maybeSingle();
+  if (error) return;
+  const cfg = data?.value || { store: 'light', admin: 'dark' };
+  $('#themeStore').value = cfg.store || 'light';
+  $('#themeAdmin').value = cfg.admin || 'dark';
+  updateThemePreview();
+}
+
+function updateThemePreview() {
+  paintThemePrev($('#prevStore'), THEME_SCHEMES.store[$('#themeStore').value] || THEME_SCHEMES.store.light);
+  paintThemePrev($('#prevAdmin'), THEME_SCHEMES.admin[$('#themeAdmin').value] || THEME_SCHEMES.admin.dark);
+}
+
+$('#themeStore').addEventListener('change', updateThemePreview);
+$('#themeAdmin').addEventListener('change', updateThemePreview);
+
+$('#themeSave').addEventListener('click', async (e) => {
+  const btn = e.currentTarget;
+  const value = { store: $('#themeStore').value, admin: $('#themeAdmin').value };
+  btn.disabled = true;
+  const { error } = await sb.rpc('ts_save_setting', { p_key: 'theme', p_value: value });
+  btn.disabled = false;
+  if (error) return toast(errMessage(error), 'err');
+  applyTheme(value.admin);
+  toast('Tema guardado');
+});
+
+$('#themeReset').addEventListener('click', async (e) => {
+  const btn = e.currentTarget;
+  const value = { store: 'light', admin: 'dark' };
+  btn.disabled = true;
+  const { error } = await sb.rpc('ts_save_setting', { p_key: 'theme', p_value: value });
+  btn.disabled = false;
+  if (error) return toast(errMessage(error), 'err');
+  applyTheme('dark');
+  await renderTheme();
+  toast('Tema restablecido');
+});
+
+$('#settingsTabs').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-stab]');
+  if (!b) return;
+  $$('#settingsTabs .tab-btn').forEach((x) => x.classList.toggle('active', x === b));
+  $$('#view-settings [data-stab-panel]').forEach((p) => p.classList.toggle('hidden', p.dataset.stabPanel !== b.dataset.stab));
+});
 
 $('#curCode').addEventListener('change', () => {
   const p = CURRENCY_PRESETS[$('#curCode').value] || CURRENCY_PRESETS.USD;
