@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Panel · TechStore SV</title>
 <link rel="icon" href="assets/favicon.svg">
-<link rel="stylesheet" href="css/admin.css?v=17ab93f3">
+<link rel="stylesheet" href="css/admin.css?v=906f02ab">
 </head>
 <body>
 
@@ -14,7 +14,7 @@
   <form class="login-card" id="loginForm">
     <div class="brandline"><span>TS</span><span>TechStore · Panel</span></div>
     <h1>Acceso del personal</h1>
-    <p class="small muted" style="margin-bottom:1rem">Solo administradores y operadores.</p>
+    <p class="small muted" style="margin-bottom:1rem">Solo personal autorizado del negocio.</p>
     <div class="field">
       <label for="lEmail">Correo</label>
       <input id="lEmail" type="email" required autocomplete="username">
@@ -66,6 +66,14 @@
       <div class="nav-group">
         <div class="nav-group-title">Análisis</div>
         <button data-view="sales">📈 Ventas</button>
+      </div>
+
+      <div class="nav-group" id="navGrowth" hidden>
+        <div class="nav-group-title">Crecimiento</div>
+        <button data-view="marketing">📣 Marketing</button>
+        <button data-view="editorial">🗓️ Calendario editorial</button>
+        <button data-view="content">✍️ Contenido</button>
+        <button data-view="metrics">📊 Métricas</button>
       </div>
 
       <div class="nav-group">
@@ -664,6 +672,98 @@
         </div>
       </div>
     </section>
+    <!-- MARKETING -->
+    <section id="view-marketing" class="hidden">
+      <div id="mktKpis" class="kpis"></div>
+
+      <div class="grid-2" style="margin-top:1rem">
+        <div class="panel">
+          <div class="row" style="justify-content:space-between;align-items:center">
+            <h3 style="margin:0">Redes del negocio</h3>
+            <button class="btn sm ghost" id="btnNetsSettings">Configurar enlaces</button>
+          </div>
+          <p class="small muted" style="margin:.4rem 0 .8rem">Estado, audiencia y conexión de cada red.</p>
+          <div id="mktNets"></div>
+        </div>
+
+        <div class="panel">
+          <h3 style="margin-top:0">Esta semana</h3>
+          <div id="mktAlert" class="cal-verdict no_ir" style="display:none"></div>
+          <div id="mktWeek"></div>
+          <button class="btn primary block" id="btnQuickCreate" style="margin-top:.8rem">+ Crear pieza</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- CALENDARIO EDITORIAL -->
+    <section id="view-editorial" class="hidden">
+      <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:.8rem">
+        <div class="row" style="gap:.4rem;align-items:center">
+          <button class="btn sm" id="edPrev">‹</button>
+          <b id="edTitle" style="min-width:150px;text-align:center"></b>
+          <button class="btn sm" id="edNext">›</button>
+          <button class="btn sm ghost" id="edToday">Hoy</button>
+        </div>
+        <div class="row" style="gap:.4rem">
+          <select id="edNetFilter" style="width:auto">
+            <option value="all">Todas las redes</option>
+            <option value="instagram">Instagram</option>
+            <option value="whatsapp">WhatsApp</option>
+            <option value="facebook">Facebook</option>
+            <option value="tiktok">TikTok</option>
+          </select>
+          <button class="btn primary" id="edNew">+ Pieza</button>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="cal-grid" id="edDow"></div>
+        <div class="cal-grid" id="edGrid" style="margin-top:4px"></div>
+        <p class="small muted" style="margin:.8rem 0 0">Parrilla sugerida: lunes producto · miércoles beneficio · viernes promo · sábado entrega real.</p>
+      </div>
+      <div class="panel" style="margin-top:1rem">
+        <h3>Piezas del mes</h3>
+        <div id="edList"></div>
+      </div>
+    </section>
+
+    <!-- CONTENIDO -->
+    <section id="view-content" class="hidden">
+      <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:.8rem">
+        <div class="row" style="gap:.4rem">
+          <input id="ctSearch" placeholder="Buscar pieza…" style="width:220px">
+          <select id="ctStatus" style="width:auto">
+            <option value="all">Todos los estados</option>
+            <option value="idea">Ideas</option>
+            <option value="borrador">Borradores</option>
+            <option value="aprobado">Aprobadas</option>
+            <option value="programado">Programadas</option>
+            <option value="publicado">Publicadas</option>
+          </select>
+        </div>
+        <button class="btn primary" id="btnNewContent">+ Nueva pieza</button>
+      </div>
+      <div id="ctGrid" class="ct-grid"></div>
+      <p class="empty" id="ctEmpty" hidden>Sin piezas todavía. Crea la primera.</p>
+    </section>
+
+    <!-- MÉTRICAS -->
+    <section id="view-metrics" class="hidden">
+      <div id="mtKpis" class="kpis"></div>
+      <div class="grid-2" style="margin-top:1rem">
+        <div class="panel">
+          <h3 style="margin-top:0">Rendimiento por tipo</h3>
+          <div id="mtByKind"></div>
+        </div>
+        <div class="panel">
+          <h3 style="margin-top:0">Rendimiento por red</h3>
+          <div id="mtByNet"></div>
+        </div>
+      </div>
+      <div class="panel" style="margin-top:1rem">
+        <h3 style="margin-top:0">Registro de publicaciones</h3>
+        <div id="mtTable"></div>
+      </div>
+    </section>
   </main>
 </div>
 
@@ -684,6 +784,6 @@
 <script src="vendor/zxing-library.min.js"></script>
 <script src="vendor/zxing-browser.min.js"></script>
 <script src="vendor/jsbarcode.min.js"></script>
-<script type="module" src="js/admin.js?v=75548942"></script>
+<script type="module" src="js/admin.js?v=09bb8dbd"></script>
 </body>
 </html>

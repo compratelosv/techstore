@@ -245,6 +245,36 @@ h3{font-size:.98rem}
 .theme-prev .tp-row{display:flex;gap:.3rem;align-items:center}
 .theme-prev .tp-card{flex:1;height:26px;border-radius:6px}
 .theme-prev .tp-btn{height:14px;width:44px;border-radius:4px}
+/* ---------- marketing ---------- */
+.net-card{border:1px solid var(--line);border-radius:12px;padding:.7rem .8rem;margin-bottom:.6rem;background:var(--bg-2)}
+.net-head{display:flex;align-items:center;gap:.6rem}
+.net-icon{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;font-size:1rem;flex:0 0 auto}
+.net-meta{display:flex;flex-wrap:wrap;gap:.35rem;margin-top:.5rem}
+.pill{font-size:.68rem;font-weight:700;padding:.16rem .5rem;border-radius:999px;background:var(--bg-3);color:var(--muted);white-space:nowrap}
+.pill.ok{background:rgba(16,185,129,.16);color:var(--ok)}
+.pill.bad{background:rgba(239,68,68,.16);color:var(--bad)}
+.pill.st-publicado{background:rgba(16,185,129,.16);color:var(--ok)}
+.pill.st-programado{background:rgba(245,158,11,.16);color:var(--warn)}
+.pill.st-borrador,.pill.st-idea{background:var(--bg-3);color:var(--muted)}
+.pill.st-aprobado{background:rgba(56,189,248,.16);color:var(--info)}
+
+.wk-row{display:flex;align-items:center;gap:.6rem;padding:.4rem 0;border-bottom:1px solid var(--line);font-size:.82rem}
+.wk-row:last-child{border-bottom:0}
+.wk-row.today{background:var(--bg-3);border-radius:8px;padding-left:.5rem;padding-right:.5rem}
+.wk-day{width:62px;flex:0 0 auto;font-weight:700;color:var(--muted);font-size:.74rem}
+.wk-items{display:flex;flex-wrap:wrap;gap:.3rem;min-width:0}
+
+.ct-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:.8rem}
+.ct-card{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--bg-2);display:flex;flex-direction:column}
+.ct-thumb{aspect-ratio:16/9;background:#0f172a;overflow:hidden}
+.ct-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.ct-body{padding:.65rem .75rem;display:flex;flex-direction:column;gap:.3rem}
+.ct-title{font-size:.9rem;line-height:1.25}
+
+.bar-row{display:grid;grid-template-columns:1fr 120px 38px;align-items:center;gap:.5rem;font-size:.8rem;padding:.22rem 0}
+.bar{height:8px;border-radius:999px;background:var(--bg-3);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--accent);border-radius:999px}
+
 /* ---------- fotos de producto ---------- */
 .photo-grid{display:flex;flex-wrap:wrap;gap:.5rem;min-height:8px}
 .photo-thumb{

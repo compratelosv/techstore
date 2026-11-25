@@ -2,6 +2,7 @@
 import { sb, money, esc, toast, fmtDate, errMessage, STATUS_LABEL, getUser, loadCurrency, loadTheme, applyTheme, getCurrency } from './core.js?v=454f869e';
 import { initPos, scanOnce, scanStream, stopScan, scanFeedback } from './pos.js?v=926d48b5';
 import { Scanner } from './scanner.js?v=90ef2e67';
+import { initMarketing, loadMarketing, renderMarketing, renderEditorial, renderContent, renderMetrics } from './marketing.js?v=41b6f5df';
 
 /* ---------------- estado ---------------- */
 const state = {
@@ -65,7 +66,7 @@ async function boot() {
     .maybeSingle();
 
   if (error) toast(errMessage(error), 'err');
-  if (!profile || !['admin', 'operador', 'transportista'].includes(profile.role)) {
+  if (!profile || !['admin', 'operador', 'transportista', 'community_manager'].includes(profile.role)) {
     await sb.auth.signOut();
     $('#loginWrap').classList.remove('hidden');
     toast('Esa cuenta no tiene permisos de panel.', 'err');
@@ -95,11 +96,29 @@ async function boot() {
   // La sección de usuarios es solo para el administrador.
   const isAdmin = profile.role === 'admin';
   const isCourier = profile.role === 'transportista';
+  const isCM = profile.role === 'community_manager';
+  const canMarketing = isAdmin || isCM;
   $('#navUsers').classList.toggle('hidden', !isAdmin);
   $('#navPromos').classList.toggle('hidden', !isAdmin);
   $('#navSuppliers').classList.toggle('hidden', !isAdmin);
   $('#navSettings').classList.toggle('hidden', !isAdmin);
   $('#navDeliveries').classList.toggle('hidden', !isCourier);
+  const growth = $('#navGrowth');
+  if (growth) growth.hidden = !canMarketing;
+
+  // El community manager entra solo a marketing: nada de pedidos, dinero ni inventario.
+  if (isCM) {
+    const allowed = ['marketing', 'editorial', 'content', 'metrics'];
+    $$('#sideNav button').forEach((b) => b.classList.toggle('hidden', !allowed.includes(b.dataset.view)));
+    $$('.nav-group').forEach((g) => {
+      g.hidden = g.querySelectorAll('button:not(.hidden)').length === 0;
+    });
+    await loadSettings();
+    initMarketing();
+    const t = viewFromHash();
+    setView(allowed.includes(t) ? t : 'marketing');
+    return;
+  }
 
   // El transportista solo entra a sus entregas: nada de costos, ventas ni clientes.
   if (isCourier) {
@@ -115,6 +134,7 @@ async function boot() {
   await loadSettings();
   await refreshAll();
   initPos({ sb, money, esc, toast, errMessage });
+  initMarketing();
   const target = viewFromHash();
   if (target === 'deliveries' || (target === 'users' && !isAdmin)) {
     setView('orders');
@@ -183,6 +203,10 @@ const TITLES = {
   users: ['Usuarios', 'Quién entra al panel y con qué rol'],
   settings: ['Configuración', 'Negocio, apariencia, cobros y redes sociales'],
   inventory: ['Inventario', 'Stock, precios y movimientos'],
+  marketing: ['Marketing', 'Redes del negocio, audiencia y estado de conexión'],
+  editorial: ['Calendario editorial', 'Qué se publica cada día y en qué estado está'],
+  content: ['Contenido', 'Piezas, borradores y publicaciones'],
+  metrics: ['Métricas', 'Alcance e interacción de lo que ya publicaste'],
 };
 
 // enlaces directos: admin.html#pedidos, #preparacion, #pos, #cotizaciones, #ventas, #usuarios, #configuracion, #inventario
@@ -201,6 +225,9 @@ const HASH_TO_VIEW = {
   usuarios: 'users', users: 'users',
   configuracion: 'settings', settings: 'settings',
   inventario: 'inventory', inventory: 'inventory',
+  marketing: 'marketing', editorial: 'editorial',
+  contenido: 'content', content: 'content',
+  metricas: 'metrics', metrics: 'metrics', metricas_marketing: 'metrics',
 };
 const VIEW_TO_HASH = {
   orders: 'pedidos', fulfillment: 'preparacion', pos: 'pos', cash: 'caja',
@@ -208,6 +235,7 @@ const VIEW_TO_HASH = {
   deliveries: 'entregas',
   customers: 'clientes', suppliers: 'proveedores',
   sales: 'ventas', users: 'usuarios', settings: 'configuracion', inventory: 'inventario',
+  marketing: 'marketing', editorial: 'editorial', content: 'contenido', metrics: 'metricas',
 };
 
 function viewFromHash() {
@@ -216,10 +244,19 @@ function viewFromHash() {
 }
 
 function setView(view, { syncHash = true } = {}) {
+  // El community manager solo entra a marketing, aunque escriba otro hash.
+  if (state.profile?.role === 'community_manager') {
+    const allowed = ['marketing', 'editorial', 'content', 'metrics'];
+    if (!allowed.includes(view)) {
+      view = 'marketing';
+      syncHash = true;
+    }
+  }
   state.view = view;
   $$('#sideNav button').forEach((b) => b.classList.toggle('active', b.dataset.view === view));
-  ['orders', 'fulfillment', 'deliveries', 'pos', 'cash', 'agenda', 'promos', 'quotes', 'customers', 'suppliers', 'sales', 'users', 'settings', 'inventory'].forEach((v) => {
-    $(`#view-${v}`).classList.toggle('hidden', v !== view);
+  ['orders', 'fulfillment', 'deliveries', 'pos', 'cash', 'agenda', 'promos', 'quotes', 'customers', 'suppliers', 'sales', 'users', 'settings', 'inventory', 'marketing', 'editorial', 'content', 'metrics'].forEach((v) => {
+    const sec = $(`#view-${v}`);
+    if (sec) sec.classList.toggle('hidden', v !== view);
   });
   $('#viewTitle').textContent = TITLES[view][0];
   $('#viewSub').textContent = TITLES[view][1];
@@ -238,6 +275,10 @@ function setView(view, { syncHash = true } = {}) {
   if (view === 'sales') renderSales();
   if (view === 'quotes') renderQuotes();
   if (view === 'customers') renderCustomers();
+  if (view === 'marketing') loadMarketing().then(renderMarketing);
+  if (view === 'editorial') loadMarketing().then(renderEditorial);
+  if (view === 'content') loadMarketing().then(renderContent);
+  if (view === 'metrics') loadMarketing().then(renderMetrics);
   if (view === 'suppliers') renderSuppliers();
   if (view === 'users') renderUsers();
   if (view === 'settings') renderSettings();
