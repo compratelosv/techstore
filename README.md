@@ -56,6 +56,7 @@ Son cuentas de sandbox con correo ya confirmado. **Las contraseñas no se guarda
 - **Calendario de entregas** (admin): vista de **mes y semana** estilo Google con los miércoles y sábados resaltados, chips por entrega y franjas libres. Incluye **Plan del día** (veredicto "ve / no vayas" por jornada según confirmaciones), enlace **"Añadir a Google Calendar"** por entrega y **exportación `.ics`** de todo el rango.
 - **Regla del primero que agenda**: el primer cliente que reserva una jornada (miércoles/sábado, mañana o tarde) **fija el punto** de esa jornada; a los demás solo se les ofrece ese punto, para no hacer dos desplazamientos.
 - **Ruta ordenada**: la agenda ordena las paradas con **Metrocentro primero** y **Plaza Merliot después** (por `ts_pickup_points.sort`), y avisa si hay que desplazarse a dos puntos.
+- **Tema claro / oscuro**: Configuración → **Apariencia** permite poner la **tienda** y el **panel** en claro u oscuro por separado, con vista previa y botón de restablecer. Se guarda en `ts_settings` (clave `theme`, lectura pública) y se aplica a todo el sitio vía `data-theme` en `<html>`. Ambos CSS exponen variables (`--bg`, `--card`, `--ink`/`--txt`, `--accent`, `--line`), así que cambiar la paleta no exige tocar componentes.
 
 ## Seguridad de las credenciales de integración
 
