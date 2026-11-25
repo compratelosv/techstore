@@ -15,6 +15,7 @@ let products = [];
 let cart = []; // [{id, sku, barcode, name, price, qty, stock}]
 let scanner = null;
 let pendingScan = null; // resolve() de scanOnce(): lectura suelta para un formulario
+let pendingStream = null; // lectura continua: { onCode, resolve }
 
 const $ = (s) => document.querySelector(s);
 
@@ -103,8 +104,12 @@ async function openScan() {
     await scanner.start('environment');
     $('#scanCount').textContent = `${cartCount()} artículos · ${api.money(total())}`;
   } catch (err) {
-    feedback(err.message || 'No se pudo abrir la cámara', 'miss');
-    api.toast(err.message || 'No se pudo abrir la cámara', 'err');
+    const raw = String(err?.message || '');
+    const msg = /permission|denied|notallowed|not allowed/i.test(raw)
+      ? 'Permiso de cámara denegado. Actívalo en los ajustes del navegador y vuelve a intentar.'
+      : (raw || 'No se pudo abrir la cámara');
+    feedback(msg, 'miss');
+    api.toast(msg, 'err');
   }
 }
 
@@ -117,6 +122,34 @@ function closeScan() {
     pendingScan = null;
     resolve(null);
   }
+  if (pendingStream) {
+    const p = pendingStream;
+    pendingStream = null;
+    p.resolve(true);
+  }
+}
+
+/** Mensaje en la barra del visor (para quien usa la lectura continua). */
+export function scanFeedback(text, kind = '') {
+  feedback(text, kind);
+}
+
+/**
+ * Lectura continua: abre la cámara y llama onCode por cada código leído
+ * sin cerrar el visor (el repartidor escanea varios bultos seguidos).
+ * Resuelve cuando se cierra el visor.
+ */
+export async function scanStream({ title = 'Escanea el código', onCode } = {}) {
+  if (pendingScan || pendingStream) return null;
+  const done = new Promise((resolve) => { pendingStream = { onCode, resolve }; });
+  await openScan();
+  feedback(title, '');
+  return done;
+}
+
+/** Cierra el visor de lectura continua. */
+export function stopScan() {
+  closeScan();
 }
 
 /**
@@ -174,6 +207,15 @@ function beep(ok = true) {
 function handleScanned(raw) {
   const code = String(raw || '').trim();
   if (!code) return;
+
+  // Lectura continua (repartidor verificando bultos): no cierra el visor.
+  if (pendingStream) {
+    beep(true);
+    if (navigator.vibrate) navigator.vibrate(30);
+    const handler = pendingStream.onCode;
+    try { handler?.(code); } catch { /* el handler avisa por su cuenta */ }
+    return;
+  }
 
   // Lectura suelta para un formulario: se devuelve y se cierra el visor.
   if (pendingScan) {

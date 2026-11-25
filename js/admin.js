@@ -1,6 +1,6 @@
 /* admin.js — shell del panel: pedidos, preparación e inventario */
 import { sb, money, esc, toast, fmtDate, errMessage, STATUS_LABEL, getUser, loadCurrency, getCurrency } from './core.js?v=5214a642';
-import { initPos, scanOnce } from './pos.js?v=45262f10';
+import { initPos, scanOnce, scanStream, stopScan, scanFeedback } from './pos.js?v=926d48b5';
 import { Scanner } from './scanner.js?v=90ef2e67';
 
 /* ---------------- estado ---------------- */
@@ -22,7 +22,8 @@ const state = {
   suppliers: [],
   purchases: [],
   couriers: [],
-  delFilter: 'activas',
+  deliveries: [],
+  delFilter: 'today',
   cash: null,
 };
 
@@ -565,26 +566,32 @@ async function renderDeliveries() {
     return setView('orders');
   }
 
-  const { data, error } = await sb.rpc('ts_courier_orders');
-  if (error) return toast(errMessage(error), 'err');
+  const scope = state.delFilter || 'today';
+  const calls = [sb.rpc('ts_courier_orders', { p_scope: scope })];
+  if (scope !== 'today') calls.push(sb.rpc('ts_courier_orders', { p_scope: 'today' }));
 
-  const all = data || [];
-  const activas = all.filter((o) => ['listo', 'en_ruta'].includes(o.status));
-  const hoy = all.filter((o) => o.status === 'entregado');
+  const [res, todayRes] = await Promise.all(calls);
+  if (res.error) return toast(errMessage(res.error), 'err');
+
+  const list = res.data || [];
+  state.deliveries = list;
+  const hoy = (todayRes?.data || (scope === 'today' ? list : [])) || [];
+  const activasHoy = hoy.filter((o) => ['listo', 'en_ruta'].includes(o.status));
+  const puedeEscanear = state.profile?.scan_delivery !== false;
 
   $('#delKpis').innerHTML = `
-    <div class="kpi"><span class="k-label">Por entregar</span><b>${all.filter((o) => o.status === 'listo').length}</b></div>
-    <div class="kpi"><span class="k-label">En ruta</span><b>${all.filter((o) => o.status === 'en_ruta').length}</b></div>
-    <div class="kpi"><span class="k-label">Entregadas</span><b>${hoy.length}</b></div>
-    <div class="kpi"><span class="k-label">Valor de la carga</span><b>${money(activas.reduce((n, o) => n + Number(o.total), 0))}</b></div>`;
-
-  const filtro = state.delFilter || 'activas';
-  const list = filtro === 'activas' ? activas : all;
+    <div class="kpi"><span class="k-label">Por entregar hoy</span><b>${hoy.filter((o) => o.status === 'listo').length}</b></div>
+    <div class="kpi"><span class="k-label">En ruta</span><b>${hoy.filter((o) => o.status === 'en_ruta').length}</b></div>
+    <div class="kpi"><span class="k-label">Entregadas hoy</span><b>${hoy.filter((o) => o.status === 'entregado').length}</b></div>
+    <div class="kpi"><span class="k-label">Valor de la carga</span><b>${money(activasHoy.reduce((n, o) => n + Number(o.total), 0))}</b></div>`;
 
   $('#delList').innerHTML = list
     .map((o) => {
+      const st = o.scan_state || { required: 0, scanned: 0, order_tag: 0 };
+      const completo = Number(st.order_tag) > 0 || Number(st.scanned) >= Number(st.required);
       const maps = [o.ship_line1, o.ship_city, o.ship_department].filter(Boolean).join(', ');
       const tel = (o.customer_phone || '').replace(/[^\d+]/g, '');
+      const activo = ['listo', 'en_ruta'].includes(o.status);
       return `<div class="panel" style="margin-bottom:.7rem">
         <div class="row" style="justify-content:space-between;align-items:flex-start;gap:.6rem">
           <div>
@@ -600,16 +607,25 @@ async function renderDeliveries() {
         <div class="small muted" style="margin:.4rem 0">
           ${(o.items || []).map((i) => `${esc(i.name)} ×${i.qty}`).join(' · ')}
         </div>
+        ${activo ? `<div class="small" style="margin:.2rem 0;color:${completo ? 'var(--ok,#4ec9a5)' : 'var(--muted)'}">
+          ${completo ? '✓ Bultos verificados' : `Bultos escaneados: ${st.scanned}/${st.required}`}
+        </div>` : ''}
         ${o.ship_notes ? `<div class="small muted">Nota: ${esc(o.ship_notes)}</div>` : ''}
         <div class="row" style="gap:.4rem;margin-top:.55rem;flex-wrap:wrap">
           ${tel ? `<a class="btn sm ghost" href="tel:${esc(tel)}">📞 Llamar</a>` : ''}
+          ${activo && puedeEscanear ? `<button class="btn sm" data-cr-scan="${o.id}">📷 Escanear bultos</button>` : ''}
           ${o.status === 'listo' ? `<button class="btn sm primary" data-cr-go="${o.id}">🚀 Salir a ruta</button>` : ''}
-          ${o.status === 'listo' || o.status === 'en_ruta' ? `<button class="btn sm" data-cr-done="${o.id}">✅ Entregado</button>` : ''}
+          ${activo ? `<button class="btn sm ${completo ? 'primary' : 'ghost'}" data-cr-done="${o.id}">✅ Entregado</button>` : ''}
         </div>
       </div>`;
     })
     .join('');
   $('#delEmpty').hidden = list.length > 0;
+  $('#delEmpty').textContent = scope === 'today'
+    ? 'No tienes entregas asignadas para hoy.'
+    : scope === 'pending'
+      ? 'No tienes entregas pendientes de días anteriores.'
+      : 'Todavía no has entregado nada.';
 }
 
 $('#delTabs').addEventListener('click', (e) => {
@@ -621,10 +637,53 @@ $('#delTabs').addEventListener('click', (e) => {
 });
 $('#btnRefreshDel').addEventListener('click', renderDeliveries);
 
+/* escaneo de bultos en la entrega */
+let scanBusy = false;
+
+function startDeliveryScan(orderId) {
+  const order = (state.deliveries || []).find((o) => o.id === orderId);
+  if (!order) return;
+
+  const st = order.scan_state || { required: 0, scanned: 0 };
+  const label = (s) => `Escanea los bultos de ${order.code} · ${s.scanned}/${s.required}`;
+
+  scanStream({
+    title: label(st),
+    onCode: async (code) => {
+      if (scanBusy) return;
+      scanBusy = true;
+      try {
+        const { data, error } = await sb.rpc('ts_courier_scan', { p_order_id: orderId, p_code: code });
+        if (error) {
+          scanFeedback(`✗ ${errMessage(error)}`, 'miss');
+          return;
+        }
+        if (data.result === 'duplicate') {
+          scanFeedback(`Ya estaba: ${data.item} · ${data.scanned}/${data.required}`, 'miss');
+          return;
+        }
+        const nombre = data.item || data.label || code;
+        if (data.complete) {
+          scanFeedback(`✓ ${nombre} · completo ${data.scanned}/${data.required}`, 'hit');
+          stopScan();
+        } else {
+          scanFeedback(`✓ ${nombre} · ${data.scanned}/${data.required}`, 'hit');
+        }
+      } finally {
+        scanBusy = false;
+      }
+    },
+  }).then(() => renderDeliveries());
+}
+
 $('#delList').addEventListener('click', async (e) => {
+  const scan = e.target.closest('[data-cr-scan]');
   const go = e.target.closest('[data-cr-go]');
   const done = e.target.closest('[data-cr-done]');
+
+  if (scan) return startDeliveryScan(scan.dataset.crScan);
   if (!go && !done) return;
+
   const id = (go || done).dataset[go ? 'crGo' : 'crDone'];
   const status = go ? 'en_ruta' : 'entregado';
   if (done && !confirm('¿Confirmas que el pedido fue entregado al cliente?')) return;
@@ -1859,6 +1918,10 @@ async function renderUsers() {
               .join('')}
           </select>
         </td>
+        <td>${u.role === 'transportista'
+          ? `<button class="btn sm ${u.scan_delivery ? '' : 'ghost'}" data-scanperm="${u.id}" data-on="${u.scan_delivery}">
+               ${u.scan_delivery ? '📷 Activo' : 'Apagado'}</button>`
+          : '<span class="small muted">—</span>'}</td>
         <td>${u.active
           ? '<span class="badge entregado">Activo</span>'
           : '<span class="badge cancelado">Inactivo</span>'}</td>
@@ -1873,6 +1936,21 @@ async function renderUsers() {
     })
     .join('');
 }
+
+$('#usersTable').addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-scanperm]');
+  if (!b) return;
+  const on = String(b.dataset.on) !== 'true';
+  b.disabled = true;
+  const { error } = await sb.rpc('ts_admin_set_scan_delivery', {
+    p_user_id: b.dataset.scanperm,
+    p_enabled: on,
+  });
+  b.disabled = false;
+  if (error) return toast(errMessage(error), 'err');
+  toast(on ? 'Escaneo de entregas habilitado' : 'Escaneo de entregas deshabilitado');
+  renderUsers();
+});
 
 $('#usersTable').addEventListener('change', async (e) => {
   const sel = e.target.closest('[data-role]');
