@@ -101,6 +101,19 @@ abrir (fondo) → vender en POS → ingresos / egresos / retiros → cerrar (arq
 - El cierre guarda el **conteo por denominación** (de $100 a 1¢) y la diferencia; queda en el historial con el nombre de quién abrió el turno.
 - El cobro exige caja abierta **en el servidor**, no solo en la pantalla: una llamada directa a `ts_confirm_payment` para un pedido POS sin turno devuelve error y el pedido sigue pendiente.
 
+## Auditoría de acciones administrativas
+
+Toda acción sensible sobre una cuenta queda registrada en `ts_admin_audit`: **quién, a quién, qué cambió, cuándo y por qué**. La tabla es inmutable: se lee solo con permiso de admin y no tiene políticas de escritura, así que nadie puede modificarla ni borrarla desde la aplicación.
+
+- **Cambiar contraseña** exige un **motivo obligatorio** (lista de causas + detalle libre) y genera una **clave temporal**; la persona **debe cambiarla al entrar** (`ts_profiles.must_change_password`).
+- **El admin nunca ve contraseñas**: solo puede restablecer. La clave queda cifrada por Supabase Auth.
+- El usuario puede cambiarla él mismo con `ts_self_change_password`.
+- **Editar datos** (nombre, teléfono) también exige motivo y guarda el antes/después.
+
+Pantalla: **Usuarios → botón 🧾 Historial de cambios**. Cada fila muestra cuándo, qué acción, a quién, el motivo y quién lo hizo.
+
+Verificado: reset con motivo → aparece en el historial → login con la temporal abre la pantalla de cambio obligatorio → al guardar, `must_change_password` pasa a `false` y queda la fecha del cambio.
+
 ## Roles y permisos por módulo
 
 | Rol | Ve en el panel |

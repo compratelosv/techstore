@@ -105,6 +105,7 @@ async function boot() {
     location.reload();
   };
   window.__tsReady = true;
+  if (profile.must_change_password) maybeForcePasswordChange();
 
   // La sección de usuarios es solo para el administrador.
   const isAdmin = profile.role === 'admin';
@@ -169,6 +170,36 @@ async function boot() {
   } else {
     setView(target);
   }
+}
+
+function maybeForcePasswordChange() {
+  openDrawer({
+    title: 'Cambia tu contraseña',
+    subtitle: 'Entraste con una clave temporal. Elige una nueva para continuar.',
+    body: `
+      <div class="panel">
+        <div class="field"><label for="cpNew">Nueva contraseña *</label>
+          <input id="cpNew" type="password" autocomplete="new-password" placeholder="Mínimo 8 caracteres"></div>
+        <div class="field"><label for="cpRepeat">Repite la contraseña *</label>
+          <input id="cpRepeat" type="password" autocomplete="new-password"></div>
+        <p class="small muted">No puede ser igual a la temporal que te entregaron.</p>
+      </div>`,
+    foot: `<button class="btn primary" id="cpGo">Guardar y entrar</button>`,
+  });
+  $('#cpGo').onclick = async () => {
+    const a = $('#cpNew').value || '';
+    const b = $('#cpRepeat').value || '';
+    if (a.length < 8) return toast('La contraseña debe tener al menos 8 caracteres', 'err');
+    if (a !== b) return toast('Las contraseñas no coinciden', 'err');
+    const btn = $('#cpGo');
+    btn.disabled = true;
+    const { error } = await sb.rpc('ts_self_change_password', { p_password: a });
+    btn.disabled = false;
+    if (error) return toast(errMessage(error), 'err');
+    if (state.profile) state.profile.must_change_password = false;
+    closeDrawer();
+    toast('Contraseña actualizada');
+  };
 }
 
 function showLogin() {
@@ -2900,7 +2931,7 @@ function pintarUsuarios() {
       <td data-label="Correo" class="small mono">${esc(u.email || '')}</td>
       <td data-label="Rol">
         <select class="btn sm" data-role="${u.id}" ${self ? 'disabled' : ''}>
-          ${['admin', 'operador', 'transportista', 'community_manager', 'cliente']
+          ${['admin', 'operador', 'cajero', 'transportista', 'community_manager', 'cliente']
             .map((r) => `<option value="${r}" ${u.role === r ? 'selected' : ''}>${ROLE_LABEL[r] || r}</option>`)
             .join('')}
         </select>
@@ -2915,6 +2946,7 @@ function pintarUsuarios() {
       <td data-label="Último acceso" class="small muted">${u.last_sign_in ? fmtDate(u.last_sign_in) : 'nunca'}</td>
       <td data-label="Acciones" class="row" style="gap:.35rem">
         <button class="btn sm" data-reset="${u.id}" data-email="${esc(u.email || '')}">Contraseña</button>
+        <button class="btn sm ghost" data-edit="${u.id}" data-name="${esc(u.full_name || '')}" data-phone="${esc(u.phone || '')}" data-email="${esc(u.email || '')}">Editar</button>
         ${self ? '' : `<button class="btn sm ${u.active ? 'danger' : ''}" data-toggle="${u.id}" data-active="${u.active}">
             ${u.active ? 'Desactivar' : 'Activar'}
           </button>`}
@@ -3016,21 +3048,131 @@ $('#usersTable').addEventListener('change', async (e) => {
   await renderUsers();
 });
 
-$('#usersTable').addEventListener('click', async (e) => {
-  const reset = e.target.closest('[data-reset]');
-  const toggle = e.target.closest('[data-toggle]');
+/* ---------- cambio de contraseña y datos con motivo registrado ---------- */
+const RESET_REASONS = [
+  'Olvidó su contraseña y no pudo recuperarla',
+  'No le llegó el correo de recuperación',
+  'Sospecha de acceso no autorizado',
+  'Entrega de credenciales a personal nuevo',
+  'Solicitud del titular por otro medio',
+  'Cuenta bloqueada por intentos fallidos',
+];
+const ACTION_LABEL = {
+  reset_password: 'Contraseña',
+  edit_user: 'Datos',
+  set_role: 'Rol',
+  set_active: 'Estado',
+  create_user: 'Alta',
+};
 
-  if (reset) {
-    const password = randomPassword();
-    const { error } = await sb.rpc('ts_admin_reset_password', {
-      p_user_id: reset.dataset.reset,
-      p_password: password,
+function openResetPassword(userId, email) {
+  openDrawer({
+    title: 'Restablecer contraseña',
+    subtitle: email || '',
+    body: `
+      <div class="panel" style="margin-bottom:.8rem">
+        <p class="small muted" style="margin-top:0">Se genera una contraseña temporal y la persona deberá cambiarla la próxima vez que entre.</p>
+        <div class="field"><label for="rpReason">Motivo *</label>
+          <select id="rpReason">
+            <option value="">— Elige el motivo —</option>
+            ${RESET_REASONS.map((r) => `<option value="${r}">${r}</option>`).join('')}
+          </select></div>
+        <div class="field"><label for="rpDetail">Detalle</label>
+          <input id="rpDetail" placeholder="Ej: llamó al 7662-6575"></div>
+        <p class="small muted">Queda registrado quién lo cambió, cuándo y por qué.</p>
+      </div>`,
+    foot: `<button class="btn primary" id="rpGo">Restablecer</button>
+           <button class="btn ghost" id="rpCancel">Cancelar</button>`,
+  });
+  $('#rpCancel').onclick = closeDrawer;
+  $('#rpGo').onclick = async () => {
+    const motivo = $('#rpReason').value;
+    if (!motivo) return toast('Elige el motivo del cambio', 'err');
+    const detalle = ($('#rpDetail').value || '').trim();
+    const btn = $('#rpGo');
+    btn.disabled = true;
+    const { data, error } = await sb.rpc('ts_admin_reset_password', {
+      p_user_id: userId,
+      p_reason: detalle ? `${motivo} — ${detalle}` : motivo,
+    });
+    btn.disabled = false;
+    if (error) return toast(errMessage(error), 'err');
+    closeDrawer();
+    toast('Contraseña temporal generada');
+    showCredentials({ email: data.email, password: data.password, role: 'usuario' });
+    await renderUsers();
+  };
+}
+
+function openEditUser(ds) {
+  openDrawer({
+    title: 'Editar usuario',
+    subtitle: ds.email || '',
+    body: `
+      <div class="panel">
+        <div class="field"><label for="euName">Nombre completo</label>
+          <input id="euName" value="${esc(ds.name || '')}"></div>
+        <div class="field"><label for="euPhone">Teléfono</label>
+          <input id="euPhone" value="${esc(ds.phone || '')}"></div>
+        <div class="field"><label for="euReason">Motivo del cambio *</label>
+          <input id="euReason" placeholder="Ej: corrigió su número de teléfono"></div>
+      </div>`,
+    foot: `<button class="btn primary" id="euGo">Guardar</button>
+           <button class="btn ghost" id="euCancel">Cancelar</button>`,
+  });
+  $('#euCancel').onclick = closeDrawer;
+  $('#euGo').onclick = async () => {
+    const reason = ($('#euReason').value || '').trim();
+    if (reason.length < 8) return toast('Escribe el motivo (mínimo 8 caracteres)', 'err');
+    const { error } = await sb.rpc('ts_admin_update_user', {
+      p_user_id: ds.edit,
+      p_full_name: $('#euName').value,
+      p_phone: $('#euPhone').value,
+      p_reason: reason,
     });
     if (error) return toast(errMessage(error), 'err');
-    toast('Contraseña restablecida');
-    showCredentials({ email: reset.dataset.email, password, role: 'operador' });
+    closeDrawer();
+    toast('Usuario actualizado');
     await renderUsers();
-  }
+  };
+}
+
+async function openAuditLog() {
+  const { data, error } = await sb.rpc('ts_admin_audit_list', { p_limit: 100 });
+  if (error) return toast(errMessage(error), 'err');
+  const rows = data || [];
+  openDrawer({
+    title: 'Historial de cambios',
+    subtitle: 'Quién cambió qué, cuándo y por qué',
+    body: rows.length
+      ? `<div class="table-wrap"><table class="table">
+          <thead><tr><th>Cuándo</th><th>Acción</th><th>Usuario</th><th>Motivo</th><th>Quién</th></tr></thead>
+          <tbody>${rows
+            .map(
+              (r) => `<tr>
+            <td class="small">${fmtDate(r.created_at)}</td>
+            <td>${esc(ACTION_LABEL[r.action] || r.action)}</td>
+            <td class="small">${esc(r.target_email || '')}</td>
+            <td class="small">${esc(r.reason || '')}</td>
+            <td class="small muted">${esc(r.actor_email || '')}</td>
+          </tr>`
+            )
+            .join('')}</tbody></table></div>`
+      : '<p class="small muted">Sin cambios registrados.</p>',
+    foot: `<button class="btn ghost" id="alClose">Cerrar</button>`,
+  });
+  $('#alClose').onclick = closeDrawer;
+}
+
+$('#btnAuditLog').addEventListener('click', openAuditLog);
+
+$('#usersTable').addEventListener('click', async (e) => {
+  const reset = e.target.closest('[data-reset]');
+  const edit = e.target.closest('[data-edit]');
+  const toggle = e.target.closest('[data-toggle]');
+
+  if (reset) return openResetPassword(reset.dataset.reset, reset.dataset.email);
+  if (edit) return openEditUser(edit.dataset);
 
   if (toggle) {
     const activar = toggle.dataset.active === 'false';
