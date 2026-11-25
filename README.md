@@ -185,6 +185,9 @@ Tablas con prefijo `ts_` para convivir con las tablas `shop_*` de la otra tienda
 | `ts_payments` | Cobros (proveedor, estado, referencia) |
 | `ts_inventory_movements` | Bitácora de entradas, ventas, ajustes y devoluciones |
 | `ts_order_events` | Auditoría de cambios de estado |
+| `ts_requisitions`, `ts_requisition_items` | Requisiciones de compra o servicio con su detalle |
+| `ts_requisition_quotes`, `ts_requisition_docs` | Cotizaciones comparadas y documentos (bucket privado) |
+| `ts_requisition_events`, `ts_departments` | Historial del flujo y centros de costo |
 
 **RLS activo en todas.** Reglas principales:
 
@@ -209,6 +212,30 @@ Para conectar Wompi:
 node serve.mjs 5180     # http://localhost:5180
 python tools/make_images.py   # regenerar las imágenes del catálogo
 ```
+
+## Verificación ejecutada — requisiciones (2026-11-25)
+
+| Prueba | Resultado |
+|---|---|
+| Alta de requisición de producto (`10 discos duros 2TB`) | `REQ-00001`, subtotal $850.00 + IVA $110.50 = **$960.50** ✅ |
+| Alta de requisición de servicio (`mantenimiento`) | subtotal $180 + IVA $23.40 − retención 10% $18 = **$185.40** ✅ |
+| Envío a aprobación | pasa a `solicitada` con evento en el historial ✅ |
+| Aprobación del CEO | `aprobada`, sello `approval_hash` guardado y visible ✅ |
+| Orden de compra | `OC-00001` generada ✅ |
+| Recepción de mercancía | `REQ-00003` → stock AUD-STE-480 **3 → 6**, costo **$20 → $30**, movimiento `entrada`, compra `COM-00002` recibida ✅ |
+| Recepción de servicio | no toca inventario ni crea compra ✅ |
+| Factura | `CCF-2026-0142` y `FAC-2026-0077` con montos ajustables; estado `facturada` ✅ |
+| Pago con efectivo sin caja abierta | rechazado: *"No hay caja abierta…"* y el estado no cambia ✅ |
+| Pago por transferencia | `pagada`, método y referencia guardados ✅ |
+| Cierre | `cerrada` con historial de 6–7 eventos ✅ |
+| Documento PDF en bucket privado | subido a `ts-documentos/req/REQ-00001/…`, abierto con enlace firmado ✅ |
+| Documento imprimible | `requisicion.html?t=…` con datos del negocio, firmas y sello ✅ |
+| Operador intentando aprobar por API | *"Solo el CEO puede aprobar requisiciones"* ✅ |
+| Operador intentando emitir OC | *"Solo el CEO emite órdenes de compra"* ✅ |
+| RLS de visibilidad | el operador veía **1 de 4** (solo la suya) ✅ |
+| Menú del operador | sin Usuarios, Promos, Proveedores, Configuración ni Inventario ✅ |
+
+Datos de prueba eliminados después: 0 requisiciones, 0 documentos, stock y costo restaurados, usuario temporal borrado, secuencias reiniciadas.
 
 ## Verificación ejecutada (2026-11-24)
 
