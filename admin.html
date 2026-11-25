@@ -194,7 +194,7 @@
                 <input id="posNrc" placeholder="123456-7"></div>
             </div>
             <div class="field"><label for="posFiscalName">Nombre o razón social *</label>
-              <input id="posFiscalName" placeholder="Como aparece en el NIT"></div>
+              <input id="posFiscalName" placeholder="Tu nombre tal como está en el NIT"></div>
             <div class="field"><label for="posFiscalAddr">Dirección</label>
               <input id="posFiscalAddr" placeholder="Departamento y municipio"></div>
           </div>
@@ -467,6 +467,83 @@
     </section>
 
     <!-- CLIENTES -->
+    <section id="view-fiscal" class="hidden">
+      <div class="panel" style="margin-bottom:1rem">
+        <div class="row" style="justify-content:space-between;gap:.6rem;flex-wrap:wrap">
+          <div>
+            <h3 style="margin:0">Datos fiscales del negocio</h3>
+            <p class="small muted" style="margin:.2rem 0 0">Con estos datos se emite el CCF y la factura ante Hacienda.</p>
+          </div>
+          <span id="fiscalState"></span>
+        </div>
+      </div>
+
+      <div class="panel" style="margin-bottom:1rem" id="fiscalWarn">
+        <p class="small" style="margin:0;color:#fca5a5">
+          <b>Emisión electrónica desactivada.</b> Los comprobantes salen como documento de control interno,
+          no válido fiscalmente. Para activarla hace falta el proveedor de facturación y el certificado de firma.
+        </p>
+      </div>
+
+      <form class="panel" id="fiscalForm">
+        <div class="row" style="gap:.6rem">
+          <div class="field" style="flex:1"><label for="fLegalName">Nombre completo o razón social *</label>
+            <input id="fLegalName" placeholder="Como aparece en el NIT"></div>
+          <div class="field" style="flex:1"><label for="fTradeName">Nombre comercial</label>
+            <input id="fTradeName" placeholder="Compratelosv"></div>
+        </div>
+        <div class="row" style="gap:.6rem">
+          <div class="field" style="flex:1"><label for="fNit">NIT *</label>
+            <input id="fNit" placeholder="0614-123456-101-1" inputmode="numeric"></div>
+          <div class="field" style="flex:1"><label for="fNrc">NRC *</label>
+            <input id="fNrc" placeholder="123456-7"></div>
+        </div>
+        <div class="row" style="gap:.6rem">
+          <div class="field" style="flex:1"><label for="fActivity">Actividad económica</label>
+            <input id="fActivity" placeholder="Venta de equipo de computo"></div>
+          <div class="field" style="flex:0 0 140px"><label for="fCaeb">Código CAEB</label>
+            <input id="fCaeb" placeholder="46510"></div>
+        </div>
+        <div class="row" style="gap:.6rem">
+          <div class="field" style="flex:1"><label for="fDept">Departamento</label>
+            <input id="fDept" placeholder="San Salvador"></div>
+          <div class="field" style="flex:1"><label for="fMuni">Municipio</label>
+            <input id="fMuni" placeholder="San Salvador"></div>
+        </div>
+        <div class="field"><label for="fLine">Dirección del establecimiento</label>
+          <input id="fLine" placeholder="Calle, número, colonia"></div>
+        <div class="row" style="gap:.6rem">
+          <div class="field" style="flex:1"><label for="fPhone">Teléfono</label>
+            <input id="fPhone" placeholder="7000-0000"></div>
+          <div class="field" style="flex:1"><label for="fEmail">Correo de facturación</label>
+            <input id="fEmail" type="email" placeholder="facturas@..."></div>
+        </div>
+
+        <h3 style="margin-top:1rem">Emisión electrónica</h3>
+        <div class="row" style="gap:.6rem">
+          <div class="field" style="flex:1"><label for="fProvider">Proveedor de facturación</label>
+            <select id="fProvider">
+              <option value="">— Sin proveedor todavía —</option>
+              <option value="facturosv">Facturosv</option>
+              <option value="infile">Infile</option>
+              <option value="gosocket">Gosocket</option>
+              <option value="edicom">EDICOM</option>
+              <option value="otro">Otro</option>
+            </select></div>
+          <div class="field" style="flex:0 0 150px"><label for="fEnv">Ambiente</label>
+            <select id="fEnv">
+              <option value="pruebas">Pruebas</option>
+              <option value="produccion">Producción</option>
+            </select></div>
+        </div>
+        <label class="row" style="gap:.5rem;align-items:center;font-size:.86rem;margin-bottom:.8rem">
+          <input type="checkbox" id="fEnabled"> Activar emisión electrónica
+        </label>
+
+        <button class="btn primary" id="fSave" type="submit">Guardar datos fiscales</button>
+      </form>
+    </section>
+
     <section id="view-support" class="hidden">
       <div class="kpis" id="supportKpis"></div>
 
@@ -995,6 +1072,6 @@
 <script src="vendor/zxing-library.min.js"></script>
 <script src="vendor/zxing-browser.min.js"></script>
 <script src="vendor/jsbarcode.min.js"></script>
-<script type="module" src="js/admin.js?v=6cd46936"></script>
+<script type="module" src="js/admin.js?v=b6dbca01"></script>
 </body>
 </html>

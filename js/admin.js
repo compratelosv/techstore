@@ -6,6 +6,7 @@ import { initMarketing, loadMarketing, renderMarketing, renderEditorial, renderC
 import { initRequisitions, loadRequisitions, renderRequisitions } from './requisitions.js?v=08a54485';
 import { initIncidents, loadIncidents, renderIncidents, openDamageForm, openIncident } from './incidents.js?v=414f354f';
 import { initSupport, loadCases, renderCases } from './support.js?v=d2569642';
+import { initFiscal, loadFiscal } from './fiscal.js?v=645763ea';
 
 /* ---------------- estado ---------------- */
 const state = {
@@ -164,6 +165,7 @@ async function boot() {
   initRequisitions(isAdmin);
   initIncidents(isAdmin);
   initSupport();
+  initFiscal();
   const target = viewFromHash();
   if (isCashier) {
     setView(['pos', 'cash', 'customers'].includes(target) ? target : 'pos');
@@ -267,6 +269,7 @@ const TITLES = {
   requisitions: ['Requisiciones', 'Compras y servicios: solicitud, aprobación del CEO, recepción y pago'],
   incidents: ['Contingencias', 'Daños antes de la entrega: gravedad, aviso al cliente y resolución'],
   support: ['Soporte', 'Casos de atención al cliente con folio, plazo y cierre con resolución'],
+  fiscal: ['Facturación', 'Datos fiscales del negocio y emisión electrónica ante Hacienda'],
   marketing: ['Marketing', 'Redes del negocio, audiencia y estado de conexión'],
   editorial: ['Calendario editorial', 'Qué se publica cada día y en qué estado está'],
   content: ['Contenido', 'Piezas, borradores y publicaciones'],
@@ -291,6 +294,7 @@ const HASH_TO_VIEW = {
   inventario: 'inventory', inventory: 'inventory',
   requisiciones: 'requisitions', requisitions: 'requisitions',
   contingencias: 'incidents', incidents: 'incidents', soporte: 'support', support: 'support',
+  facturacion: 'fiscal', fiscal: 'fiscal',
   marketing: 'marketing', editorial: 'editorial',
   contenido: 'content', content: 'content',
   metricas: 'metrics', metrics: 'metrics', metricas_marketing: 'metrics',
@@ -321,7 +325,7 @@ function setView(view, { syncHash = true } = {}) {
   }
   // Solo el CEO entra a inventario, promos, proveedores, usuarios y configuración,
   // aunque escriba el hash a mano.
-  if (state.profile?.role !== 'admin' && ['inventory', 'promos', 'suppliers', 'users', 'settings'].includes(view)) {
+  if (state.profile?.role !== 'admin' && ['inventory', 'promos', 'suppliers', 'users', 'settings', 'fiscal'].includes(view)) {
     view = state.profile?.role === 'cajero' ? 'pos' : 'orders';
     syncHash = true;
   }
@@ -332,7 +336,7 @@ function setView(view, { syncHash = true } = {}) {
   }
   state.view = view;
   $$('#sideNav button').forEach((b) => b.classList.toggle('active', b.dataset.view === view));
-  ['orders', 'fulfillment', 'deliveries', 'pos', 'cash', 'agenda', 'promos', 'quotes', 'customers', 'suppliers', 'sales', 'users', 'settings', 'inventory', 'marketing', 'editorial', 'content', 'metrics', 'requisitions', 'incidents', 'support'].forEach((v) => {
+  ['orders', 'fulfillment', 'deliveries', 'pos', 'cash', 'agenda', 'promos', 'quotes', 'customers', 'suppliers', 'sales', 'users', 'settings', 'inventory', 'marketing', 'editorial', 'content', 'metrics', 'requisitions', 'incidents', 'support', 'fiscal'].forEach((v) => {
     const sec = $(`#view-${v}`);
     if (sec) sec.classList.toggle('hidden', v !== view);
   });
@@ -356,6 +360,7 @@ function setView(view, { syncHash = true } = {}) {
   if (view === 'quotes') renderQuotes();
   if (view === 'customers') renderCustomers();
   if (view === 'support') loadCases().then(renderCases);
+  if (view === 'fiscal') loadFiscal();
   if (view === 'marketing') loadMarketing().then(renderMarketing);
   if (view === 'editorial') loadMarketing().then(renderEditorial);
   if (view === 'content') loadMarketing().then(renderContent);
