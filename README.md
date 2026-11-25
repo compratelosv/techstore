@@ -101,6 +101,34 @@ abrir (fondo) → vender en POS → ingresos / egresos / retiros → cerrar (arq
 - El cierre guarda el **conteo por denominación** (de $100 a 1¢) y la diferencia; queda en el historial con el nombre de quién abrió el turno.
 - El cobro exige caja abierta **en el servidor**, no solo en la pantalla: una llamada directa a `ts_confirm_payment` para un pedido POS sin turno devuelve error y el pedido sigue pendiente.
 
+## Motor de promociones
+
+Una promo tiene **tipo** (`kind`) y **alcance** (`scope`):
+
+| kind | Qué hace |
+|---|---|
+| `cupon` | requiere código en el checkout o en la caja |
+| `bienvenida` | automática para la primera compra de una cuenta |
+| `auto` | se aplica sola al producto, **sin código**; se muestra con etiqueta |
+
+| scope | Alcance |
+|---|---|
+| `all` | todo el catálogo |
+| `products` | productos marcados (`ts_promo_products`) |
+| `categories` | **bloques/categorías** completas (`ts_promo_categories`) |
+
+Reglas del motor:
+
+- **Una promo por producto.** Nunca se acumulan dos descuentos sobre la misma línea: si el producto ya tiene promo propia, el cupón se calcula solo sobre las líneas libres y el POS avisa cuántas quedaron fuera.
+- **La etiqueta manda.** `v_product_promo` devuelve la mejor promo automática de cada producto; la tienda y el POS la muestran como precio rebajado (píldora `−$8.90`).
+- **El desplegable del POS no es una lista fija.** `ts_promo_options(carrito, cliente)` devuelve solo los cupones que **de verdad** aplican a ese carrito y a ese cliente (vigencia, tope, compra mínima, alcance y si ya usó el de bienvenida), ordenados por descuento.
+- **El monto siempre lo calcula el servidor** (`ts_promo_eval`), por línea; el navegador solo lo muestra.
+- Las promos `auto` se aplican solas en la caja: aparecen con ⚡ en el desplegable y el cajero puede quitarlas.
+
+**Límite conocido:** si un carrito tiene **dos promos `auto` distintas**, solo se aplica una (la de mayor descuento), porque `ts_place_order` recibe un único código. Sumar descuentos automáticos por línea requiere cambiar esa función; está pendiente.
+
+Verificado: carrito de $124.00 (teclado $89 con promo de accesorios + audífono $35) → descuento $8.90 → **cobro real $115.10** (`TEC-001021`).
+
 ## Cómo funciona el punto de venta de sala
 
 ```

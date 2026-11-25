@@ -298,6 +298,13 @@ th.sortable[data-dir]:not([data-dir=""])::after{content:attr(data-dir);margin-le
 .theme-prev .tp-row{display:flex;gap:.3rem;align-items:center}
 .theme-prev .tp-card{flex:1;height:26px;border-radius:6px}
 .theme-prev .tp-btn{height:14px;width:44px;border-radius:4px}
+/* ---------- POS: etiqueta de promo en la ficha ---------- */
+.pos-tag{
+  position:absolute;top:.35rem;right:.35rem;font-size:.66rem;font-weight:700;
+  background:var(--accent);color:#fff;border-radius:999px;padding:.1rem .4rem;line-height:1.3
+}
+.pos-tile{position:relative}
+
 /* ---------- POS: bloque de cobro siempre visible ---------- */
 .pos-paybox{
   position:sticky;bottom:-1px;z-index:4;margin-top:.8rem;

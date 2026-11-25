@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Panel · TechStore SV</title>
 <link rel="icon" href="assets/favicon.svg">
-<link rel="stylesheet" href="css/admin.css?v=9aec7eea">
+<link rel="stylesheet" href="css/admin.css?v=9acecde5">
 </head>
 <body>
 
@@ -160,18 +160,8 @@
 
         <!-- izquierda: caja / ticket -->
         <div class="panel">
-          <div class="scan-actions">
-            <button class="btn primary block" id="posScanBtn">📷 Escanear producto</button>
-            <button class="btn ghost block sm" id="posPhotoBtn" style="margin-top:.4rem">🖼 Leer desde una foto</button>
-            <input type="file" id="posPhotoInput" accept="image/*" capture="environment" hidden>
-            <div class="row" style="margin-top:.6rem">
-              <input id="posCodeInput" placeholder="O escribe el código y Enter" inputmode="numeric" autocomplete="off">
-              <button class="btn" id="posCodeAdd">Agregar</button>
-            </div>
-            <p class="small muted" id="posScanHint">Apunta al código de barras del producto. Cada lectura suma una unidad.</p>
-          </div>
 
-          <h3 style="margin-top:1rem">Ticket</h3>
+          <h3>Ticket</h3>
           <div id="posLines"></div>
           <p class="small muted" id="posEmpty">Sin productos. Escanea el primero.</p>
 
@@ -212,11 +202,11 @@
             <div class="field">
               <label for="posPromo">Cupón de descuento</label>
               <div class="row" style="gap:.4rem">
-                <input id="posPromo" placeholder="Ej: BUENFIN15" style="flex:1" autocomplete="off">
-                <button class="btn sm" id="posPromoApply">Aplicar</button>
+                <select id="posPromo" style="flex:1"><option value="">— Cupones aplicables —</option></select>
+                <button class="btn sm" id="posPromoRefresh" title="Recalcular cupones">↻</button>
                 <button class="btn sm ghost" id="posPromoClear" hidden>Quitar</button>
               </div>
-              <span class="small muted" id="posPromoHint"></span>
+              <span class="small muted" id="posPromoHint">Agrega productos para ver qué cupones aplican.</span>
             </div>
 
             <div class="pos-total"><span>Total</span><span id="posTotal">$0.00</span></div>
@@ -247,7 +237,18 @@
 
         <!-- derecha: catálogo rápido -->
         <div class="panel">
-          <div class="field">
+                        <div class="scan-actions">
+                <button class="btn primary block" id="posScanBtn">📷 Escanear producto</button>
+                <button class="btn ghost block sm" id="posPhotoBtn" style="margin-top:.4rem">🖼 Leer desde una foto</button>
+                <input type="file" id="posPhotoInput" accept="image/*" capture="environment" hidden>
+                <div class="row" style="margin-top:.6rem">
+                  <input id="posCodeInput" placeholder="O escribe el código y Enter" inputmode="numeric" autocomplete="off">
+                  <button class="btn" id="posCodeAdd">Agregar</button>
+                </div>
+                <p class="small muted" id="posScanHint">Apunta al código de barras del producto. Cada lectura suma una unidad.</p>
+              </div>
+
+<div class="field">
             <label for="posSearch">Tocar producto (sin código a mano)</label>
             <input id="posSearch" placeholder="Nombre, marca o SKU…">
           </div>

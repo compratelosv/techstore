@@ -18,6 +18,9 @@ let pendingScan = null; // resolve() de scanOnce(): lectura suelta para un formu
 let pendingStream = null; // lectura continua: { onCode, resolve }
 let customer = null; // cliente de mostrador elegido
 let promo = null; // { code, discount, label }
+let promoByProduct = {}; // promo automática por producto (etiquetas)
+let promoFingerprint = '';
+const autoDismissed = new Set(); // promos de producto que el cajero quitó a mano
 
 const $ = (s) => document.querySelector(s);
 
@@ -65,6 +68,9 @@ export function initPos(deps) {
   });
   $('#posClear').addEventListener('click', () => {
     cart = [];
+    promo = null;
+    promoFingerprint = '';
+    autoDismissed.clear();
     renderCart();
   });
   $('#posCharge').addEventListener('click', charge);
@@ -77,11 +83,13 @@ export function initPos(deps) {
     if (e.key === 'Enter') { e.preventDefault(); findCustomer(); }
   });
   document.getElementById('posCustomerNew')?.addEventListener('click', newCustomer);
-  document.getElementById('posPromoApply')?.addEventListener('click', applyPromo);
-  document.getElementById('posPromoClear')?.addEventListener('click', clearPromo);
-  document.getElementById('posPromo')?.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') { e.preventDefault(); applyPromo(); }
+  document.getElementById('posPromo')?.addEventListener('change', applyPromo);
+  document.getElementById('posPromoRefresh')?.addEventListener('click', () => {
+    promoFingerprint = '';
+    syncPromoOptions();
+    api.toast('Cupones recalculados');
   });
+  document.getElementById('posPromoClear')?.addEventListener('click', clearPromo);
 
   loadProducts();
 }
@@ -95,6 +103,9 @@ async function loadProducts() {
     .order('name');
   if (error) return api.toast(api.errMessage(error), 'err');
   products = data || [];
+  const { data: labels } = await api.sb.from('v_product_promo').select('product_id, promo');
+  promoByProduct = {};
+  (labels || []).forEach((r) => { promoByProduct[r.product_id] = r.promo; });
   renderProducts();
   renderCart();
 }
@@ -390,6 +401,7 @@ function renderCart() {
     : 'Cobrar, emitir e imprimir';
   const count = $('#scanCount');
   if (count) count.textContent = `${cartCount()} artículos · ${api.money(total())}`;
+  syncPromoOptions();
 }
 
 function renderProducts() {
@@ -407,6 +419,7 @@ function renderProducts() {
       .map(
         (p) => `
       <button class="pos-tile" data-pos-add="${p.id}" ${p.stock === 0 ? 'disabled' : ''}>
+        ${promoByProduct[p.id] ? `<span class="pos-tag">−${api.money(promoByProduct[p.id].discount)}</span>` : ''}
         <div class="n">${api.esc(p.name)}</div>
         <div class="p">${api.money(p.price)}</div>
         <div class="s">${p.stock === 0 ? 'Agotado' : `Stock ${p.stock}`}</div>
@@ -520,6 +533,8 @@ async function charge() {
   const usedPromo = promo?.code;
   cart = [];
   promo = null;
+  promoFingerprint = '';
+  autoDismissed.clear();
   customer = null;
   resetPosFields();
   await loadProducts();
@@ -644,15 +659,70 @@ function newCustomer() {
   };
 }
 
-async function applyPromo() {
-  const code = (document.getElementById('posPromo')?.value || '').trim();
+function promoItems() {
+  return cart.map((i) => ({ product_id: i.id, qty: i.qty, total: Number(i.price) * i.qty }));
+}
+
+async function syncPromoOptions() {
+  const sel = document.getElementById('posPromo');
   const hint = document.getElementById('posPromoHint');
-  if (!code) return api.toast('Escribe el codigo del cupon', 'err');
+  if (!sel) return;
+  const fp = cart.map((i) => `${i.id}x${i.qty}`).sort().join('|');
+  if (fp === promoFingerprint) return;
+  promoFingerprint = fp;
+
+  if (!cart.length) {
+    sel.innerHTML = '<option value="">— Cupones aplicables —</option>';
+    if (hint) hint.textContent = 'Agrega productos para ver qué cupones aplican.';
+    return;
+  }
+
+  const { data, error } = await api.sb.rpc('ts_promo_options', { p_items: promoItems(), p_uid: null });
+  if (error) return;
+  const opts = Array.isArray(data) ? data : [];
+
+  sel.innerHTML =
+    '<option value="">— Sin cupón —</option>' +
+    opts
+      .map(
+        (o) =>
+          `<option value="${o.code}" ${promo && promo.code === o.code ? 'selected' : ''}>${
+            o.auto ? '⚡ ' : ''
+          }${o.code} · −${api.money(o.discount)}</option>`
+      )
+      .join('');
+
+  const keep = promo && opts.some((o) => o.code === promo.code);
+  // la promo de producto se aplica sola, salvo que el cajero la haya quitado
+  const autoOpt = opts.find((o) => o.auto && !autoDismissed.has(o.code));
+  if (!keep && autoOpt) {
+    sel.value = autoOpt.code;
+    await applyPromo();
+    return;
+  }
+  if (!keep && promo) {
+    promo = null;
+    document.getElementById('posPromoClear').hidden = true;
+  }
+  if (hint) {
+    hint.textContent = opts.length
+      ? `${opts.length} promoción(es) aplicables a este carrito.`
+      : 'Ninguna promoción aplica a este carrito.';
+  }
+}
+
+async function applyPromo() {
+  const sel = document.getElementById('posPromo');
+  const code = (sel?.value || '').trim();
+  const hint = document.getElementById('posPromoHint');
+  if (!code) return clearPromo();
   if (!cart.length) return api.toast('Agrega productos antes del cupon', 'err');
 
-  const items = cart.map((i) => ({ product_id: i.id, qty: i.qty, total: Number(i.price) * i.qty }));
-  const { data, error } = await api.sb.rpc('ts_promo_check', { p_code: code, p_items: items });
-  if (error) { if (hint) hint.textContent = ''; return api.toast(api.errMessage(error), 'err'); }
+  const { data, error } = await api.sb.rpc('ts_promo_check', { p_code: code, p_items: promoItems() });
+  if (error) {
+    if (hint) hint.textContent = '';
+    return api.toast(api.errMessage(error), 'err');
+  }
   if (!data?.ok) {
     promo = null;
     if (hint) hint.textContent = '';
@@ -661,16 +731,29 @@ async function applyPromo() {
     return api.toast(data?.message || 'Ese cupon no aplica', 'err');
   }
 
-  promo = { code: data.code, discount: Number(data.discount), label: data.message };
-  if (hint) hint.innerHTML = 'OK · <b>' + api.esc(data.name) + '</b> · ' + api.esc(data.message);
+  promo = {
+    code: data.code,
+    discount: Number(data.discount),
+    label: data.message,
+    base: Number(data.base) || 0,
+    auto: !!data.auto,
+  };
+  if (hint) {
+    hint.innerHTML =
+      `OK · <b>${api.esc(data.name)}</b> · −${api.money(data.discount)} sobre ${api.money(data.base)}` +
+      (data.blocked?.length ? ` <span class="muted">· no acumula en ${data.blocked.length} línea(s)</span>` : '');
+  }
   document.getElementById('posPromoClear').hidden = false;
   renderCart();
 }
 
 function clearPromo() {
+  if (promo?.auto) autoDismissed.add(promo.code);
   promo = null;
-  document.getElementById('posPromo').value = '';
-  document.getElementById('posPromoHint').textContent = '';
+  const sel = document.getElementById('posPromo');
+  if (sel) sel.value = '';
+  const hint = document.getElementById('posPromoHint');
+  if (hint) hint.textContent = '';
   document.getElementById('posPromoClear').hidden = true;
   renderCart();
 }
