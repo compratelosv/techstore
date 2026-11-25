@@ -1,5 +1,5 @@
 /* checkout.js — crea el pedido (pendiente_pago) con cupón, cita y aceptación de términos */
-import { sb, money, esc, toast, mountHeader, getProfile, requireLogin, errMessage } from './core.js?v=454f869e';
+import { sb, money, esc, toast, mountHeader, getProfile, requireLogin, errMessage } from './core.js?v=3b15e8e6';
 import { getCart, cartTotal, clearCart } from './cart.js?v=213c08d9';
 
 const items = getCart();

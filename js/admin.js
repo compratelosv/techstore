@@ -1,8 +1,8 @@
 /* admin.js — shell del panel: pedidos, preparación e inventario */
-import { sb, money, esc, toast, fmtDate, errMessage, STATUS_LABEL, getUser, loadCurrency, loadTheme, applyTheme, getCurrency } from './core.js?v=454f869e';
+import { sb, money, esc, toast, fmtDate, errMessage, STATUS_LABEL, getUser, loadCurrency, loadTheme, applyTheme, getCurrency, openDrawerUI, closeDrawerUI, initDrawerDismiss } from './core.js?v=3b15e8e6';
 import { initPos, scanOnce, scanStream, stopScan, scanFeedback } from './pos.js?v=926d48b5';
 import { Scanner } from './scanner.js?v=90ef2e67';
-import { initMarketing, loadMarketing, renderMarketing, renderEditorial, renderContent, renderMetrics } from './marketing.js?v=41b6f5df';
+import { initMarketing, loadMarketing, renderMarketing, renderEditorial, renderContent, renderMetrics } from './marketing.js?v=7ad6e894';
 
 /* ---------------- estado ---------------- */
 const state = {
@@ -12,6 +12,12 @@ const state = {
   categories: [],
   statusFilter: 'all',
   search: '',
+  sortKey: 'created_at',
+  sortDir: 'desc',
+  channel: 'all',
+  fulfillment: 'all',
+  dateFrom: '',
+  dateTo: '',
   profile: null,
   salesDays: 30,
   salesData: null,
@@ -47,12 +53,16 @@ function openDrawer({ title, subtitle = '', body = '', foot = '' }) {
   drawer.classList.remove('hidden');
   drawer.classList.add('open');
   drawer.setAttribute('aria-hidden', 'false');
+  openDrawerUI();
+  $('#dBody').scrollTop = 0;
 }
 function closeDrawer() {
   drawer.classList.remove('open');
   drawer.setAttribute('aria-hidden', 'true');
+  closeDrawerUI();
 }
 $('#dClose').onclick = closeDrawer;
+initDrawerDismiss();
 
 /* ---------------- auth ---------------- */
 async function boot() {
@@ -363,7 +373,30 @@ function renderOrders() {
     const okStatus = state.statusFilter === 'all' || o.status === state.statusFilter;
     const okQ = !q || o.code.toLowerCase().includes(q) || (o.customer_name || '').toLowerCase().includes(q)
       || (o.customer_email || '').toLowerCase().includes(q) || (o.customer_phone || '').includes(q);
-    return okStatus && okQ;
+    const okChannel = state.channel === 'all' || (o.channel || 'online') === state.channel;
+    const okFulfil = state.fulfillment === 'all' || o.fulfillment === state.fulfillment;
+    const dia = (o.created_at || '').slice(0, 10);
+    const okFrom = !state.dateFrom || dia >= state.dateFrom;
+    const okTo = !state.dateTo || dia <= state.dateTo;
+    return okStatus && okQ && okChannel && okFulfil && okFrom && okTo;
+  });
+
+  // orden por columna (clic en el encabezado)
+  const SORT = {
+    code: (o) => o.code || '',
+    customer_name: (o) => (o.customer_name || '').toLowerCase(),
+    fulfillment: (o) => (o.fulfillment === 'retiro' ? 'retiro' : (o.ship_city || 'envio')).toLowerCase(),
+    total: (o) => Number(o.total) || 0,
+    status: (o) => o.status || '',
+    created_at: (o) => new Date(o.created_at || 0).getTime(),
+  };
+  const key = SORT[state.sortKey] || SORT.created_at;
+  rows.sort((a, b) => {
+    const va = key(a), vb = key(b);
+    const cmp = typeof va === 'number' && typeof vb === 'number'
+      ? va - vb
+      : String(va).localeCompare(String(vb), 'es');
+    return state.sortDir === 'asc' ? cmp : -cmp;
   });
 
   $('#ordersTable').querySelector('tbody').innerHTML = rows
@@ -379,6 +412,15 @@ function renderOrders() {
       </tr>`)
     .join('');
   $('#ordersEmpty').hidden = rows.length > 0;
+
+  // indicador de la columna ordenada
+  $$('#ordersTable th.sortable').forEach((th) => {
+    const on = th.dataset.sort === state.sortKey;
+    th.classList.toggle('sorted', on);
+    th.dataset.dir = on ? (state.sortDir === 'asc' ? '▲' : '▼') : '';
+  });
+  const fc = $('#fCount');
+  if (fc) fc.textContent = `${rows.length} de ${state.orders.length} pedidos`;
 }
 
 $('#statusTabs').addEventListener('click', (e) => {
@@ -393,7 +435,46 @@ $('#orderSearch').addEventListener('input', (e) => {
   renderOrders();
 });
 
+/* filtros combinados: canal, tipo de entrega y rango de fechas */
+const readOrderFilters = () => {
+  state.channel = $('#fChannel').value;
+  state.fulfillment = $('#fFulfillment').value;
+  state.dateFrom = $('#fFrom').value;
+  state.dateTo = $('#fTo').value;
+  renderOrders();
+};
+['fChannel', 'fFulfillment', 'fFrom', 'fTo'].forEach((id) => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('change', readOrderFilters);
+});
+const clearFilters = document.getElementById('fClear');
+if (clearFilters) {
+  clearFilters.addEventListener('click', () => {
+    state.channel = 'all'; state.fulfillment = 'all';
+    state.dateFrom = ''; state.dateTo = ''; state.search = ''; state.statusFilter = 'all';
+    $('#fChannel').value = 'all';
+    $('#fFulfillment').value = 'all';
+    $('#fFrom').value = '';
+    $('#fTo').value = '';
+    $('#orderSearch').value = '';
+    renderOrders();
+  });
+}
+
+/* ordenar al hacer clic en un encabezado */
 $('#ordersTable').addEventListener('click', (e) => {
+  const th = e.target.closest('th[data-sort]');
+  if (th) {
+    const k = th.dataset.sort;
+    if (state.sortKey === k) {
+      state.sortDir = state.sortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+      state.sortKey = k;
+      // columnas numéricas y fechas empiezan de mayor a menor
+      state.sortDir = (k === 'total' || k === 'created_at') ? 'desc' : 'asc';
+    }
+    return renderOrders();
+  }
   const row = e.target.closest('[data-order]');
   if (!row) return;
   openOrder(row.dataset.order);

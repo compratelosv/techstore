@@ -52,6 +52,42 @@ export function applyTheme(mode) {
   return mode;
 }
 
+/* ---------- panel deslizante: cortina y cierre al tocar fuera ---------- */
+export function openDrawerUI() {
+  const s = document.getElementById('drawerScrim');
+  if (s) {
+    s.hidden = false;
+    requestAnimationFrame(() => s.classList.add('show'));
+  }
+  document.body.classList.add('drawer-open');
+}
+
+export function closeDrawerUI() {
+  const d = document.querySelector('.drawer.open');
+  if (d) {
+    d.classList.remove('open');
+    d.setAttribute('aria-hidden', 'true');
+  }
+  const s = document.getElementById('drawerScrim');
+  if (s) {
+    s.classList.remove('show');
+    setTimeout(() => {
+      if (!document.querySelector('.drawer.open')) s.hidden = true;
+    }, 220);
+  }
+  document.body.classList.remove('drawer-open');
+}
+
+/** Engancha la cortina y la tecla Escape (una sola vez por página). */
+export function initDrawerDismiss() {
+  const s = document.getElementById('drawerScrim');
+  if (!s) return;
+  s.addEventListener('click', closeDrawerUI);
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && document.querySelector('.drawer.open')) closeDrawerUI();
+  });
+}
+
 /* ---------- redes sociales en la tienda ---------- */
 const SOCIAL_META = {
   instagram: { label: 'Instagram', icon: '📷' },

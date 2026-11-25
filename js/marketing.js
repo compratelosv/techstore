@@ -1,5 +1,5 @@
 /* marketing.js — módulo Marketing: redes, calendario editorial, contenido y métricas */
-import { sb, money, esc, toast, errMessage, getUser } from './core.js?v=454f869e';
+import { sb, money, esc, toast, errMessage, getUser, openDrawerUI, closeDrawerUI } from './core.js?v=3b15e8e6';
 
 /* ---------------- constantes ---------------- */
 export const NETS = {
@@ -308,11 +308,14 @@ function openMktDrawer({ title, subtitle = '', body = '', foot = '' }) {
   drawer.classList.remove('hidden');
   drawer.classList.add('open');
   drawer.setAttribute('aria-hidden', 'false');
+  openDrawerUI();
+  $('#dBody').scrollTop = 0;
 }
 function closeMktDrawer() {
   const drawer = $('#drawer');
   drawer.classList.remove('open');
   drawer.setAttribute('aria-hidden', 'true');
+  closeDrawerUI();
 }
 
 /* ---------------- editor de pieza ---------------- */
