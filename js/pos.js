@@ -92,6 +92,7 @@ export function initPos(deps) {
   document.getElementById('posPromoClear')?.addEventListener('click', clearPromo);
 
   loadProducts();
+  initBarcodeGun();
 }
 
 /* ---------------- datos ---------------- */
@@ -822,4 +823,94 @@ function numeroLetras(monto) {
   const cents = Math.round(((Number(monto) || 0) - n) * 100);
   const txt = enteroLetras(n).toUpperCase();
   return txt + ' ' + (cents ? 'CON ' + String(cents).padStart(2, '0') + '/100' : 'CON 00/100') + ' DOLARES';
+}
+
+
+/* ================= pistola lectora (teclado HID) =================
+   Un lector USB/Bluetooth se comporta como un teclado: escribe el codigo y
+   manda Enter. Escuchamos a nivel de documento, asi el cajero solo apunta y
+   dispara: el producto entra sin abrir la camara ni pulsar nada.
+   No intercepta mientras se escribe en un campo de texto. */
+let gunBuf = '';
+let gunTimer = null;
+let gunReady = false;
+
+function gunTypingTarget(el) {
+  if (!el) return false;
+  const tag = el.tagName;
+  if (tag === 'TEXTAREA' || tag === 'SELECT') return true;
+  if (tag === 'INPUT') {
+    const type = (el.type || 'text').toLowerCase();
+    return !['checkbox', 'radio', 'button', 'submit', 'file', 'range', 'color', 'date'].includes(type);
+  }
+  return el.isContentEditable === true;
+}
+
+function gunFeedback(code, ok) {
+  const hint = document.getElementById('gunHint');
+  if (!hint) return;
+  const hora = new Date().toLocaleTimeString('es-SV', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  hint.textContent = ok ? `📡 Última lectura ${hora} · ${code}` : `📡 Sin coincidencia ${hora} · ${code}`;
+  hint.style.color = ok ? '' : '#fca5a5';
+  hint.classList.remove('gun-pulse');
+  void hint.offsetWidth;
+  hint.classList.add('gun-pulse');
+}
+
+function gunFlush() {
+  const code = gunBuf.trim();
+  gunBuf = '';
+  if (gunTimer) {
+    clearTimeout(gunTimer);
+    gunTimer = null;
+  }
+  if (code.length < 5) return;
+
+  // si otra pantalla esta esperando una lectura (verificar bultos), la respetamos
+  if (pendingScan || pendingStream) {
+    handleScanned(code);
+    return;
+  }
+
+  const res = addByCode(code);
+  if (res.ok) {
+    beep(true);
+    if (navigator.vibrate) navigator.vibrate(25);
+    gunFeedback(code, true);
+    toast(`Agregado: ${res.product.name} ×${res.qty}`);
+  } else {
+    beep(false);
+    gunFeedback(code, false);
+    toast(res.reason || 'Codigo no encontrado', 'err');
+  }
+}
+
+export function initBarcodeGun() {
+  if (gunReady) return;
+  gunReady = true;
+  document.addEventListener(
+    'keydown',
+    (e) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      // el cajero escribiendo en un campo: ahi manda el campo
+      if (gunTypingTarget(e.target)) return;
+
+      if (e.key === 'Enter') {
+        if (!gunBuf) return;
+        e.preventDefault();
+        gunFlush();
+        return;
+      }
+      if (e.key.length !== 1) return; // Shift, Tab, flechas, F1...
+
+      gunBuf += e.key;
+      if (gunTimer) clearTimeout(gunTimer);
+      // lectores configurados sin Enter: se cierran solos al dejar de teclear
+      gunTimer = setTimeout(() => {
+        if (gunBuf.length >= 6) gunFlush();
+        else gunBuf = '';
+      }, 120);
+    },
+    true
+  );
 }

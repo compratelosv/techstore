@@ -309,6 +309,14 @@ th.sortable[data-dir]:not([data-dir=""])::after{content:attr(data-dir);margin-le
 .csg-msg.agente{border-left-color:var(--accent);background:rgba(120,140,180,.06)}
 .csg-msg.cliente{border-left-color:#4a8fe0}
 
+/* ---------- POS: pistola lectora ---------- */
+@keyframes gunPulse{
+  0%{transform:scale(1);opacity:.75}
+  45%{transform:scale(1.03);opacity:1}
+  100%{transform:scale(1);opacity:1}
+}
+.gun-pulse{animation:gunPulse .35s ease-out;transform-origin:left center}
+
 /* ---------- POS: etiqueta de promo en la ficha ---------- */
 .pos-tag{
   position:absolute;top:.35rem;right:.35rem;font-size:.66rem;font-weight:700;

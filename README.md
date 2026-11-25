@@ -199,7 +199,20 @@ Reglas del motor:
 
 Verificado: carrito de $124.00 (teclado $89 con promo de accesorios + audífono $35) → descuento $8.90 → **cobro real $115.10** (`TEC-001021`).
 
-## Cómo funciona el punto de venta de sala
+### Pistola lectora de códigos
+
+El POS escucha la pistola **siempre**, sin abrir la cámara ni pulsar nada. Un lector USB o Bluetooth funciona como un teclado: escribe el código y manda Enter, así que se escucha a nivel de documento y el producto entra solo (con beep y vibración).
+
+- **No interfiere con lo que el cajero escribe**: si el foco está en un campo de texto (buscador, cupón, NIT, cantidad), las teclas van al campo y no al carrito.
+- **Lectores sin Enter**: si el lector no envía Enter, el buffer se cierra solo a los **120 ms** de inactividad, siempre que el código tenga 6 caracteres o más.
+- **Cada lectura suma una unidad**; si el producto ya está en el ticket, aumenta la cantidad y respeta el stock.
+- **Código desconocido**: beep grave, aviso en rojo y mensaje con el código leído. No agrega nada.
+- **Indicador visible** junto al lector: `📡 Pistola lista…` y después `📡 Última lectura 04:39:23 p. m. · 7506250953804`.
+- Se respeta la lectura continua de bultos (transportista): si esa pantalla está esperando un código, la pistola alimenta esa espera.
+
+Pruebas ejecutadas con pulsaciones reales de teclado (simulando el lector): código correcto agrega; el mismo código suma cantidad (2 y 3 unidades); con el foco en el buscador **no** agrega; código inexistente avisa y no agrega; lectura sin Enter se resuelve por inactividad.
+
+### Cómo funciona el punto de venta de sala
 
 ```
 escanear → cliente (opcional) → documento → cupón → forma de pago → cobrar → ticket 80 mm
