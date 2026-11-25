@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Panel · TechStore SV</title>
 <link rel="icon" href="assets/favicon.svg">
-<link rel="stylesheet" href="css/admin.css?v=9acecde5">
+<link rel="stylesheet" href="css/admin.css?v=4f20c8d8">
 </head>
 <body>
 
@@ -61,6 +61,7 @@
         <button data-view="agenda">📆 Calendario</button>
         <button data-view="quotes">🧾 Cotizaciones</button>
         <button data-view="customers">👤 Clientes</button>
+        <button data-view="support" id="navSupport">💬 Soporte</button>
       </div>
 
       <div class="nav-group">
@@ -465,6 +466,32 @@
     </section>
 
     <!-- CLIENTES -->
+    <section id="view-support" class="hidden">
+      <div class="kpis" id="supportKpis"></div>
+
+      <div class="panel">
+        <div class="row" style="justify-content:space-between;gap:.6rem;flex-wrap:wrap;margin-bottom:.8rem">
+          <div>
+            <h3 style="margin:0">Casos de soporte</h3>
+            <p class="small muted" style="margin:.2rem 0 0">Cada caso tiene folio, plazo y cierre con resolución obligatoria.</p>
+          </div>
+          <button class="btn primary sm" id="btnNewCase">＋ Nuevo caso</button>
+        </div>
+
+        <div class="chips-row" id="supportChips"></div>
+
+        <div style="overflow-x:auto">
+          <table class="table stack-mobile" id="supportTable">
+            <thead>
+              <tr><th>Folio</th><th>Asunto</th><th>Cliente</th><th>Prioridad</th><th>Estado</th><th>Plazo</th><th>Abierto</th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <p class="small muted" id="supportEmpty" hidden>Sin casos en este filtro.</p>
+      </div>
+    </section>
+
     <section id="view-customers" class="hidden">
       <div class="kpis" id="custKpis"></div>
       <div class="panel">
@@ -967,6 +994,6 @@
 <script src="vendor/zxing-library.min.js"></script>
 <script src="vendor/zxing-browser.min.js"></script>
 <script src="vendor/jsbarcode.min.js"></script>
-<script type="module" src="js/admin.js?v=292d9f5a"></script>
+<script type="module" src="js/admin.js?v=6cd46936"></script>
 </body>
 </html>

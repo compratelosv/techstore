@@ -5,6 +5,7 @@ import { Scanner } from './scanner.js?v=90ef2e67';
 import { initMarketing, loadMarketing, renderMarketing, renderEditorial, renderContent, renderMetrics } from './marketing.js?v=7ad6e894';
 import { initRequisitions, loadRequisitions, renderRequisitions } from './requisitions.js?v=08a54485';
 import { initIncidents, loadIncidents, renderIncidents, openDamageForm, openIncident } from './incidents.js?v=414f354f';
+import { initSupport, loadCases, renderCases } from './support.js?v=d2569642';
 
 /* ---------------- estado ---------------- */
 const state = {
@@ -162,6 +163,7 @@ async function boot() {
   initMarketing();
   initRequisitions(isAdmin);
   initIncidents(isAdmin);
+  initSupport();
   const target = viewFromHash();
   if (isCashier) {
     setView(['pos', 'cash', 'customers'].includes(target) ? target : 'pos');
@@ -264,6 +266,7 @@ const TITLES = {
   inventory: ['Inventario', 'Stock, precios y movimientos'],
   requisitions: ['Requisiciones', 'Compras y servicios: solicitud, aprobación del CEO, recepción y pago'],
   incidents: ['Contingencias', 'Daños antes de la entrega: gravedad, aviso al cliente y resolución'],
+  support: ['Soporte', 'Casos de atención al cliente con folio, plazo y cierre con resolución'],
   marketing: ['Marketing', 'Redes del negocio, audiencia y estado de conexión'],
   editorial: ['Calendario editorial', 'Qué se publica cada día y en qué estado está'],
   content: ['Contenido', 'Piezas, borradores y publicaciones'],
@@ -287,7 +290,7 @@ const HASH_TO_VIEW = {
   configuracion: 'settings', settings: 'settings',
   inventario: 'inventory', inventory: 'inventory',
   requisiciones: 'requisitions', requisitions: 'requisitions',
-  contingencias: 'incidents', incidents: 'incidents',
+  contingencias: 'incidents', incidents: 'incidents', soporte: 'support', support: 'support',
   marketing: 'marketing', editorial: 'editorial',
   contenido: 'content', content: 'content',
   metricas: 'metrics', metrics: 'metrics', metricas_marketing: 'metrics',
@@ -329,7 +332,7 @@ function setView(view, { syncHash = true } = {}) {
   }
   state.view = view;
   $$('#sideNav button').forEach((b) => b.classList.toggle('active', b.dataset.view === view));
-  ['orders', 'fulfillment', 'deliveries', 'pos', 'cash', 'agenda', 'promos', 'quotes', 'customers', 'suppliers', 'sales', 'users', 'settings', 'inventory', 'marketing', 'editorial', 'content', 'metrics', 'requisitions', 'incidents'].forEach((v) => {
+  ['orders', 'fulfillment', 'deliveries', 'pos', 'cash', 'agenda', 'promos', 'quotes', 'customers', 'suppliers', 'sales', 'users', 'settings', 'inventory', 'marketing', 'editorial', 'content', 'metrics', 'requisitions', 'incidents', 'support'].forEach((v) => {
     const sec = $(`#view-${v}`);
     if (sec) sec.classList.toggle('hidden', v !== view);
   });
@@ -352,6 +355,7 @@ function setView(view, { syncHash = true } = {}) {
   if (view === 'sales') renderSales();
   if (view === 'quotes') renderQuotes();
   if (view === 'customers') renderCustomers();
+  if (view === 'support') loadCases().then(renderCases);
   if (view === 'marketing') loadMarketing().then(renderMarketing);
   if (view === 'editorial') loadMarketing().then(renderEditorial);
   if (view === 'content') loadMarketing().then(renderContent);

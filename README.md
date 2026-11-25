@@ -101,6 +101,33 @@ abrir (fondo) → vender en POS → ingresos / egresos / retiros → cerrar (arq
 - El cierre guarda el **conteo por denominación** (de $100 a 1¢) y la diferencia; queda en el historial con el nombre de quién abrió el turno.
 - El cobro exige caja abierta **en el servidor**, no solo en la pantalla: una llamada directa a `ts_confirm_payment` para un pedido POS sin turno devuelve error y el pedido sigue pendiente.
 
+## Atención al cliente
+
+Dos capas, con un puente entre ellas.
+
+**1. Ayuda predefinida** (`ts_help_articles`) — el cliente se resuelve solo. **No genera caso**: sería ruido y enseñaría que escribir siempre obtiene respuesta. Los artículos se organizan por el momento del viaje (`antes`, `cuenta`, `compra`, `entrega`, `despues`), con síntomas, pasos numerados y un botón para hablar con una persona.
+
+**2. Caso con agente** (`ts_cases`) — siempre con folio `ATC-#####` y un dueño.
+
+| Campo | Regla |
+|---|---|
+| Folio | `ATC-00001`, secuencia propia, nunca se reutiliza |
+| Canales | WhatsApp, teléfono, correo, presencial |
+| Prioridad | baja · normal · alta · urgente |
+| Estados | nuevo → en proceso → esperando cliente → escalado → resuelto → cerrado |
+| Plazo | 24 h primera respuesta y 72 h de resolución (urgente: 4 h / 24 h) |
+| Cierre | **obligatorio** elegir tipo de solución y escribir qué se hizo (mínimo 10 caracteres) |
+
+Cada caso guarda su conversación (`ts_case_messages`) y su rastro de eventos (`ts_case_events`). El cierre escribe `resolution_code`, `resolution_notes`, `resolved_at` y `closed_at`; no existe la opción de cerrar vacío.
+
+Permisos: lo ven y atienden `admin` y `operador` (`ts_is_manager()`). El cliente ve solo sus propios casos (`user_id = auth.uid()`). El **cajero no** entra a soporte.
+
+Freno anti-abuso: quien no es personal solo puede abrir **3 casos por día** con el mismo teléfono o correo.
+
+Pantalla: **Operación → 💬 Soporte**, con KPIs (nuevos, en proceso, esperando cliente, **fuera de plazo**, cerrados), filtros por estado y detalle con conversación, respuesta, escalado y cierre.
+
+Verificado con `ATC-00001`: creación → respuesta (pasa a *en proceso*) → cierre rechazado por nota corta → cierre válido con resolución, quedando 3 eventos y 2 mensajes. El caso de prueba se eliminó después.
+
 ## Auditoría de acciones administrativas
 
 Toda acción sensible sobre una cuenta queda registrada en `ts_admin_audit`: **quién, a quién, qué cambió, cuándo y por qué**. La tabla es inmutable: se lee solo con permiso de admin y no tiene políticas de escritura, así que nadie puede modificarla ni borrarla desde la aplicación.
