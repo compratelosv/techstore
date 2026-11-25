@@ -79,8 +79,7 @@ h3{font-size:.98rem}
   .nav-group-title{cursor:default;display:flex;align-items:center;justify-content:space-between;gap:.4rem}
   .nav-group-title::after{content:'▸';font-size:.68rem;opacity:.55;transition:transform .18s ease}
   .nav-group:hover .nav-group-title::after,
-  .nav-group:focus-within .nav-group-title::after,
-  .nav-group:has(button.active) .nav-group-title::after{content:'▾';opacity:.9}
+  .nav-group:focus-within .nav-group-title::after{content:'▾';opacity:.9}
 
   .nav-group > button{
     max-height:0;opacity:0;overflow:hidden;
@@ -88,10 +87,15 @@ h3{font-size:.98rem}
     transition:max-height .22s ease,opacity .16s ease,padding .22s ease
   }
   .nav-group:hover > button,
-  .nav-group:focus-within > button,
-  .nav-group:has(button.active) > button{
+  .nav-group:focus-within > button{
     max-height:52px;opacity:1;padding-top:.55rem;padding-bottom:.55rem
   }
+}
+
+/* el grupo donde está la vista actual se marca, sin quedarse abierto */
+.nav-group:has(button.active) .nav-group-title{color:var(--txt);opacity:1}
+.nav-group:has(button.active) .nav-group-title::before{
+  content:'●';color:var(--accent);font-size:.55rem;margin-right:.35rem;line-height:1
 }
 .side-foot{margin-top:auto;font-size:.72rem;color:var(--muted);padding:.6rem .75rem 0;border-top:1px solid var(--line)}
 .side-foot button{background:none;border:0;color:var(--bad);font:inherit;cursor:pointer;padding:0;margin-top:.3rem}
