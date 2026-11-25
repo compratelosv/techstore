@@ -182,6 +182,18 @@ th.sortable:hover{color:var(--txt)}
 th.sortable.sorted{color:var(--accent)}
 th.sortable[data-dir]:not([data-dir=""])::after{content:attr(data-dir);margin-left:.3rem;font-size:.72em}
 
+/* ---------- pedidos agrupados ---------- */
+.order-group{border:1px solid var(--line);border-radius:10px;margin-bottom:.55rem;background:var(--bg-2);overflow:hidden}
+.order-group summary{
+  cursor:pointer;padding:.55rem .75rem;background:var(--bg-3);display:flex;align-items:center;
+  gap:.25rem;list-style:none;font-size:.85rem
+}
+.order-group summary::-webkit-details-marker{display:none}
+.order-group summary::before{content:'▸';margin-right:.4rem;color:var(--muted);transition:.15s;display:inline-block}
+.order-group[open] summary::before{content:'▾'}
+.order-group .table{margin:0}
+.order-group .table thead th{background:var(--bg-2)}
+
 .evline{font-size:.8rem;color:var(--muted);border-left:2px solid var(--line);padding:.1rem 0 .1rem .7rem;margin-bottom:.45rem}
 .evline b{color:var(--txt)}
 

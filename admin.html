@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Panel · TechStore SV</title>
 <link rel="icon" href="assets/favicon.svg">
-<link rel="stylesheet" href="css/admin.css?v=bcdf27ec">
+<link rel="stylesheet" href="css/admin.css?v=6356b84c">
 </head>
 <body>
 
@@ -122,10 +122,11 @@
             <input type="date" id="fTo">
           </label>
           <button class="btn sm ghost" id="fClear" type="button">Limpiar</button>
+          <button class="btn sm" id="fGroup" type="button" aria-pressed="false">Agrupar por estado</button>
           <span class="small muted" id="fCount"></span>
         </div>
 
-        <div style="overflow-x:auto">
+        <div style="overflow-x:auto" id="ordersTableWrap">
           <table class="table" id="ordersTable">
             <thead>
               <tr>
@@ -141,6 +142,7 @@
             <tbody></tbody>
           </table>
         </div>
+        <div id="ordersGrouped" hidden></div>
         <p class="empty small muted" id="ordersEmpty" hidden>No hay pedidos con ese filtro.</p>
       </div>
     </section>
@@ -816,6 +818,6 @@
 <script src="vendor/zxing-library.min.js"></script>
 <script src="vendor/zxing-browser.min.js"></script>
 <script src="vendor/jsbarcode.min.js"></script>
-<script type="module" src="js/admin.js?v=049bda11"></script>
+<script type="module" src="js/admin.js?v=f78e5760"></script>
 </body>
 </html>

@@ -18,6 +18,7 @@ const state = {
   fulfillment: 'all',
   dateFrom: '',
   dateTo: '',
+  grouped: false,
   profile: null,
   salesDays: 30,
   salesData: null,
@@ -142,6 +143,7 @@ async function boot() {
   }
 
   await loadSettings();
+  loadOrderPrefs();
   await refreshAll();
   initPos({ sb, money, esc, toast, errMessage });
   initMarketing();
@@ -330,6 +332,39 @@ async function loadProducts() {
   const { data, error } = await sb.from('ts_products').select('*').order('name');
   if (error) return toast(errMessage(error), 'err');
   state.products = data || [];
+  // el costo vive en una tabla que solo ve el administrador
+  if (state.profile?.role === 'admin') {
+    const { data: costs } = await sb.from('ts_product_costs').select('product_id, cost');
+    const map = new Map((costs || []).map((c) => [c.product_id, c.cost]));
+    state.products.forEach((p) => { p.cost = map.has(p.id) ? map.get(p.id) : null; });
+  }
+}
+
+/* ---------------- preferencias de la tabla de pedidos ---------------- */
+const ORDER_PREFS = 'ts.orders.prefs';
+function saveOrderPrefs() {
+  try {
+    localStorage.setItem(ORDER_PREFS, JSON.stringify({
+      sortKey: state.sortKey, sortDir: state.sortDir,
+      channel: state.channel, fulfillment: state.fulfillment,
+      dateFrom: state.dateFrom, dateTo: state.dateTo,
+      statusFilter: state.statusFilter, search: state.search, grouped: state.grouped,
+    }));
+  } catch { /* sin almacenamiento: se ignora */ }
+}
+function loadOrderPrefs() {
+  try {
+    const p = JSON.parse(localStorage.getItem(ORDER_PREFS) || '{}');
+    if (p.sortKey) state.sortKey = p.sortKey;
+    if (p.sortDir) state.sortDir = p.sortDir;
+    state.channel = p.channel || 'all';
+    state.fulfillment = p.fulfillment || 'all';
+    state.dateFrom = p.dateFrom || '';
+    state.dateTo = p.dateTo || '';
+    if (p.statusFilter) state.statusFilter = p.statusFilter;
+    state.search = p.search || '';
+    state.grouped = !!p.grouped;
+  } catch { /* prefs corruptas: se ignoran */ }
 }
 
 /* ---------------- pedidos: KPIs y tabla ---------------- */
@@ -399,8 +434,7 @@ function renderOrders() {
     return state.sortDir === 'asc' ? cmp : -cmp;
   });
 
-  $('#ordersTable').querySelector('tbody').innerHTML = rows
-    .map((o) => `
+  const rowHtml = (o) => `
       <tr class="order-row" data-order="${o.id}">
         <td class="mono">${esc(o.code)}</td>
         <td>${esc(o.customer_name)}<div class="small muted">${esc(o.customer_phone || '')}</div></td>
@@ -409,18 +443,80 @@ function renderOrders() {
         <td><span class="badge ${o.status}">${STATUS_LABEL[o.status] || o.status}</span></td>
         <td class="small muted">${fmtDate(o.created_at)}</td>
         <td><button class="btn sm ghost" data-open="${o.id}">Ver</button></td>
-      </tr>`)
-    .join('');
+      </tr>`;
+
+  const tabla = $('#ordersTable');
+  const wrapTabla = $('#ordersTableWrap');
+  const agrupado = $('#ordersGrouped');
+
+  if (state.grouped) {
+    // bloques colapsables por estado, conservando el orden elegido dentro de cada uno
+    wrapTabla.hidden = true;
+    agrupado.hidden = false;
+    const grupos = new Map();
+    rows.forEach((o) => {
+      if (!grupos.has(o.status)) grupos.set(o.status, []);
+      grupos.get(o.status).push(o);
+    });
+    const ORDEN = ['pendiente_pago', 'pagado', 'en_preparacion', 'listo', 'en_ruta', 'entregado', 'no_show', 'cancelado', 'reembolsado'];
+    const claves = Array.from(grupos.keys())
+      .sort((a, b) => (ORDEN.indexOf(a) + 1 || 99) - (ORDEN.indexOf(b) + 1 || 99));
+    agrupado.innerHTML = claves.map((k) => {
+      const its = grupos.get(k);
+      const suma = its.reduce((n, o) => n + Number(o.total || 0), 0);
+      return `<details class="order-group" open>
+        <summary>
+          <span class="badge ${k}">${STATUS_LABEL[k] || k}</span>
+          <b style="margin:0 .35rem">${its.length}</b>
+          <span class="small muted">pedido${its.length === 1 ? '' : 's'} · ${money(suma)}</span>
+        </summary>
+        <div style="overflow-x:auto">
+          <table class="table">
+            <thead><tr>
+              <th class="sortable" data-sort="code">Código</th>
+              <th class="sortable" data-sort="customer_name">Cliente</th>
+              <th class="sortable" data-sort="fulfillment">Entrega</th>
+              <th class="sortable num" data-sort="total">Total</th>
+              <th class="sortable" data-sort="status">Estado</th>
+              <th class="sortable" data-sort="created_at">Creado</th>
+              <th></th>
+            </tr></thead>
+            <tbody>${its.map(rowHtml).join('')}</tbody>
+          </table>
+        </div>
+      </details>`;
+    }).join('');
+  } else {
+    wrapTabla.hidden = false;
+    agrupado.hidden = true;
+    tabla.querySelector('tbody').innerHTML = rows.map(rowHtml).join('');
+  }
+
   $('#ordersEmpty').hidden = rows.length > 0;
 
-  // indicador de la columna ordenada
-  $$('#ordersTable th.sortable').forEach((th) => {
+  // el botón refleja el modo activo
+  const gbtn = $('#fGroup');
+  if (gbtn) {
+    gbtn.setAttribute('aria-pressed', String(state.grouped));
+    gbtn.classList.toggle('primary', state.grouped);
+  }
+
+  // los controles muestran el estado real (también al volver a la vista)
+  if ($('#orderSearch').value !== state.search) $('#orderSearch').value = state.search;
+  if ($('#fChannel').value !== state.channel) $('#fChannel').value = state.channel;
+  if ($('#fFulfillment').value !== state.fulfillment) $('#fFulfillment').value = state.fulfillment;
+  if ($('#fFrom').value !== state.dateFrom) $('#fFrom').value = state.dateFrom;
+  if ($('#fTo').value !== state.dateTo) $('#fTo').value = state.dateTo;
+
+  // indicador de la columna ordenada (tabla normal y bloques agrupados)
+  $$('#view-orders th.sortable').forEach((th) => {
     const on = th.dataset.sort === state.sortKey;
     th.classList.toggle('sorted', on);
     th.dataset.dir = on ? (state.sortDir === 'asc' ? '▲' : '▼') : '';
   });
   const fc = $('#fCount');
   if (fc) fc.textContent = `${rows.length} de ${state.orders.length} pedidos`;
+  saveOrderPrefs();
 }
 
 $('#statusTabs').addEventListener('click', (e) => {
@@ -462,7 +558,7 @@ if (clearFilters) {
 }
 
 /* ordenar al hacer clic en un encabezado */
-$('#ordersTable').addEventListener('click', (e) => {
+const onOrdersClick = (e) => {
   const th = e.target.closest('th[data-sort]');
   if (th) {
     const k = th.dataset.sort;
@@ -478,7 +574,18 @@ $('#ordersTable').addEventListener('click', (e) => {
   const row = e.target.closest('[data-order]');
   if (!row) return;
   openOrder(row.dataset.order);
-});
+};
+$('#ordersTable').addEventListener('click', onOrdersClick);
+$('#ordersGrouped').addEventListener('click', onOrdersClick);
+
+/* agrupar / desagrupar por estado */
+const groupBtn = document.getElementById('fGroup');
+if (groupBtn) {
+  groupBtn.addEventListener('click', () => {
+    state.grouped = !state.grouped;
+    renderOrders();
+  });
+}
 
 /* ---------------- detalle de pedido ---------------- */
 const NEXT_ACTION = {
@@ -2947,13 +3054,14 @@ async function renderSales() {
   const shareDelta = pct(Number(t.revenue), Number(p.revenue));
   const ordersDelta = pct(Number(t.orders), Number(p.orders));
 
+  const verMargen = data.is_admin ?? (state.profile?.role === 'admin');
   $('#salesKpis').innerHTML = `
     <div class="kpi"><span>Ingresos</span><b>${money(t.revenue)}</b>${deltaBadge(shareDelta)}</div>
     <div class="kpi"><span>Pedidos</span><b>${t.orders || 0}</b>${deltaBadge(ordersDelta)}</div>
     <div class="kpi"><span>Ticket promedio</span><b>${money(t.avg_ticket)}</b></div>
     <div class="kpi"><span>Unidades vendidas</span><b>${t.units || 0}</b></div>
-    <div class="kpi"><span>Margen bruto</span><b>${money(t.margin)}</b>
-      <span class="small muted" style="text-transform:none;letter-spacing:0">costo ${money(t.cost)}</span></div>`;
+    ${verMargen ? `<div class="kpi"><span>Margen bruto</span><b>${money(t.margin)}</b>
+      <span class="small muted" style="text-transform:none;letter-spacing:0">costo ${money(t.cost)}</span></div>` : ''}`;
 
   $('#salesChart').innerHTML = chartSvg(data.daily, data.from_date, days);
   $('#salesChartSub').innerHTML =
@@ -3135,10 +3243,10 @@ function openProductEditor(p = null) {
             <label for="fPrice">Precio venta *</label>
             <input id="fPrice" type="number" step="0.01" min="0" value="${p ? Number(p.price) : ''}" placeholder="849.00">
           </div>
-          <div class="field" style="flex:1">
+          ${state.profile?.role === 'admin' ? `<div class="field" style="flex:1">
             <label for="fCost">Costo</label>
             <input id="fCost" type="number" step="0.01" min="0" value="${p?.cost ?? ''}">
-          </div>
+          </div>` : ''}
         </div>
         <div class="row" style="gap:.6rem">
           <div class="field" style="flex:1">
@@ -3385,7 +3493,6 @@ function openProductEditor(p = null) {
       brand: document.getElementById('fBrand').value.trim() || null,
       category_id: document.getElementById('fCat').value || null,
       price: Number(document.getElementById('fPrice').value),
-      cost: document.getElementById('fCost').value === '' ? null : Number(document.getElementById('fCost').value),
       stock: Number(document.getElementById('fStock').value || 0),
       low_stock: Number(document.getElementById('fLow').value || 0),
       barcode: document.getElementById('fBarcode').value.trim() || newBarcode(),
@@ -3419,15 +3526,24 @@ function openProductEditor(p = null) {
       }
     }
 
-    const { error } = p
-      ? await sb.from('ts_products').update(payload).eq('id', p.id)
-      : await sb.from('ts_products').insert(payload);
+    const { data: saved, error } = p
+      ? await sb.from('ts_products').update(payload).eq('id', p.id).select().single()
+      : await sb.from('ts_products').insert(payload).select().single();
 
     if (error) {
       toast(errMessage(error), 'err');
       btn.disabled = false;
       btn.textContent = 'Guardar producto';
       return;
+    }
+
+    // El costo se guarda aparte, en la tabla que solo ve el administrador.
+    const costEl = document.getElementById('fCost');
+    if (state.profile?.role === 'admin' && costEl && saved?.id) {
+      const valor = costEl.value === '' ? null : Number(costEl.value);
+      const { error: costErr } = await sb.from('ts_product_costs')
+        .upsert({ product_id: saved.id, cost: valor, updated_at: new Date().toISOString() });
+      if (costErr) toast(`Costo no guardado: ${errMessage(costErr)}`, 'err');
     }
 
     toast(p ? 'Producto actualizado' : 'Producto agregado al inventario');
