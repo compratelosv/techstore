@@ -43,6 +43,7 @@ function openDrawer({ title, subtitle = '', body = '', foot = '' }) {
   $('#dMeta').innerHTML = subtitle;
   $('#dBody').innerHTML = body;
   $('#dFoot').innerHTML = foot;
+  drawer.classList.remove('hidden');
   drawer.classList.add('open');
   drawer.setAttribute('aria-hidden', 'false');
 }
@@ -934,6 +935,7 @@ function renderInventory() {
   $('#invTable').querySelector('tbody').innerHTML = rows
     .map((p) => `
       <tr>
+        <td data-label="Foto"><img class="inv-thumb" src="${esc(p.image_url || 'assets/img/placeholder.svg')}" alt=""></td>
         <td class="mono small">${esc(p.sku)}</td>
         <td>${esc(p.name)}</td>
         <td class="small muted">${esc(p.brand || '')}</td>
@@ -3040,6 +3042,15 @@ function openProductEditor(p = null) {
           <label for="fDesc">Descripción</label>
           <textarea id="fDesc" rows="3">${esc(p?.description || '')}</textarea>
         </div>
+        <div class="field">
+          <label>Fotos del producto</label>
+          <div id="fGallery" class="photo-grid"></div>
+          <div class="row" style="gap:.6rem;margin-top:.45rem;align-items:center">
+            <button class="btn sm" type="button" id="fAddPhoto">📷 Agregar fotos</button>
+            <span class="small muted" id="fPhotoHint">JPG, PNG o WebP · máx. 5 MB · la primera es la portada</span>
+          </div>
+          <input type="file" id="fPhotoInput" accept="image/jpeg,image/png,image/webp,image/avif" multiple hidden>
+        </div>
         <label class="row" style="gap:.5rem;align-items:center;font-size:.86rem">
           <input type="checkbox" id="fActive" ${!p || p.active ? 'checked' : ''} style="width:auto">
           Visible en la tienda
@@ -3155,6 +3166,90 @@ function openProductEditor(p = null) {
     }
   };
 
+  /* ---------- fotos del producto ---------- */
+  const MAX_PHOTOS = 6;
+  const MAX_BYTES = 5 * 1024 * 1024;
+  let photos = Array.isArray(p?.images) && p.images.length
+    ? p.images.filter(Boolean)
+    : (p?.image_url ? [p.image_url] : []);
+  const hintPhoto = document.getElementById('fPhotoHint');
+  const hintDefault = hintPhoto ? hintPhoto.textContent : '';
+
+  function renderGallery() {
+    const box = document.getElementById('fGallery');
+    if (!box) return;
+    box.innerHTML = photos.length
+      ? photos.map((url, i) => `
+        <div class="photo-thumb ${i === 0 ? 'primary' : ''}">
+          <img src="${esc(url)}" alt="Foto ${i + 1}">
+          ${i === 0
+            ? '<span class="pt-badge">PORTADA</span>'
+            : `<button type="button" class="pt-cover" data-cover="${i}" title="Usar como portada">Portada</button>`}
+          <button type="button" class="pt-del" data-del="${i}" title="Quitar foto">✕</button>
+        </div>`).join('')
+      : '<span class="photo-empty">Sin fotos todavía. La tienda usará la imagen por defecto.</span>';
+  }
+
+  document.getElementById('fAddPhoto').onclick = () => document.getElementById('fPhotoInput').click();
+
+  document.getElementById('fGallery').onclick = (e) => {
+    const del = e.target.closest('[data-del]');
+    if (del) {
+      photos.splice(Number(del.dataset.del), 1);
+      return renderGallery();
+    }
+    const cov = e.target.closest('[data-cover]');
+    if (cov) {
+      const [url] = photos.splice(Number(cov.dataset.cover), 1);
+      photos.unshift(url);
+      renderGallery();
+    }
+  };
+
+  document.getElementById('fPhotoInput').onchange = async (e) => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = '';
+    if (!files.length) return;
+
+    const room = MAX_PHOTOS - photos.length;
+    if (room <= 0) return toast(`Máximo ${MAX_PHOTOS} fotos por producto`, 'err');
+    if (files.length > room) toast(`Solo caben ${room} foto(s) más`, 'err');
+
+    const skuBase = (document.getElementById('fSku').value.trim() || 'producto')
+      .toLowerCase().replace(/[^a-z0-9-]/g, '') || 'producto';
+    let subidas = 0;
+
+    for (const file of files.slice(0, room)) {
+      if (!/^image\/(jpeg|png|webp|avif)$/.test(file.type)) {
+        toast(`"${file.name}" no es JPG, PNG, WebP ni AVIF`, 'err');
+        continue;
+      }
+      if (file.size > MAX_BYTES) {
+        toast(`"${file.name}" pesa ${(file.size / 1048576).toFixed(1)} MB (máximo 5 MB)`, 'err');
+        continue;
+      }
+      if (hintPhoto) hintPhoto.textContent = `Subiendo ${file.name}…`;
+      const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace('jpeg', 'jpg');
+      const path = `${skuBase}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      const { error } = await sb.storage.from('ts-productos').upload(path, file, {
+        cacheControl: '31536000', upsert: false, contentType: file.type,
+      });
+      if (error) {
+        toast(errMessage(error), 'err');
+        continue;
+      }
+      const { data } = sb.storage.from('ts-productos').getPublicUrl(path);
+      photos.push(data.publicUrl);
+      subidas += 1;
+      renderGallery();
+    }
+
+    if (hintPhoto) hintPhoto.textContent = hintDefault;
+    if (subidas) toast(`${subidas} foto${subidas === 1 ? '' : 's'} subida${subidas === 1 ? '' : 's'}`);
+  };
+
+  renderGallery();
+
   document.getElementById('fCancel').onclick = closeDrawer;
 
   document.getElementById('fSave').onclick = async (e) => {
@@ -3173,6 +3268,8 @@ function openProductEditor(p = null) {
       low_stock: Number(document.getElementById('fLow').value || 0),
       barcode: document.getElementById('fBarcode').value.trim() || newBarcode(),
       description: document.getElementById('fDesc').value.trim() || null,
+      image_url: photos[0] || null,
+      images: photos,
       active: document.getElementById('fActive').checked,
     };
 

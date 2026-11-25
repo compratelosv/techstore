@@ -31,11 +31,17 @@ async function load() {
 
   const low = p.stock > 0 && p.stock <= p.low_stock;
   const out = p.stock === 0;
+  const photos = Array.isArray(p.images) && p.images.length
+    ? p.images.filter(Boolean)
+    : (p.image_url ? [p.image_url] : ['assets/img/placeholder.svg']);
 
   view.innerHTML = `
     <div class="product-layout">
       <div class="product-media">
-        <img src="${esc(p.image_url || 'assets/img/placeholder.svg')}" alt="${esc(p.name)}">
+        <img id="pmMain" src="${esc(photos[0])}" alt="${esc(p.name)}">
+        ${photos.length > 1 ? `<div class="pm-thumbs">
+          ${photos.map((u, i) => `<button type="button" class="pm-thumb ${i === 0 ? 'active' : ''}" data-img="${esc(u)}" aria-label="Foto ${i + 1}"><img src="${esc(u)}" alt=""></button>`).join('')}
+        </div>` : ''}
       </div>
       <div class="product-info">
         <span class="eyebrow">${esc(p.ts_categories?.name || 'Tecnología')}</span>
@@ -79,6 +85,13 @@ async function load() {
   document.getElementById('qMinus').onclick = () => { qtyEl.value = Math.max(1, Number(qtyEl.value) - 1); };
   document.getElementById('qPlus').onclick = () => { qtyEl.value = Math.min(p.stock || 1, Number(qtyEl.value) + 1); };
   qtyEl.onchange = clamp;
+
+  view.querySelectorAll('.pm-thumb').forEach((b) => {
+    b.onclick = () => {
+      document.getElementById('pmMain').src = b.dataset.img;
+      view.querySelectorAll('.pm-thumb').forEach((x) => x.classList.toggle('active', x === b));
+    };
+  });
 
   document.getElementById('addBtn').onclick = () => {
     try {

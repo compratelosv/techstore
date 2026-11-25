@@ -154,6 +154,13 @@ section.block{padding:2.5rem 0}
 /* ---------- ficha ---------- */
 .product-layout{display:grid;grid-template-columns:1fr 1fr;gap:2.5rem;padding:2rem 0 3rem}
 .product-media{border-radius:18px;overflow:hidden;background:#0f172a;box-shadow:var(--shadow)}
+.pm-thumbs{display:flex;gap:.5rem;margin-top:.55rem;flex-wrap:wrap}
+.pm-thumb{
+  width:62px;height:62px;border-radius:9px;overflow:hidden;padding:0;cursor:pointer;
+  border:1px solid var(--line);background:var(--card);transition:.15s
+}
+.pm-thumb.active{outline:2px solid var(--accent);outline-offset:-2px}
+.pm-thumb img{width:100%;height:100%;object-fit:cover;display:block}
 .breadcrumb{font-size:.82rem;color:var(--ink-3);margin:1.2rem 0 .2rem}
 .product-info h1{margin:.3rem 0 .5rem}
 .product-price{font-size:2rem;font-weight:800;letter-spacing:-.03em;margin:.6rem 0}
