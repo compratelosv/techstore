@@ -445,11 +445,12 @@ async function charge() {
     if (!/^\d{4}-\d{6}-\d{3}-\d{1}$/.test(nit)) {
       return api.toast('El NIT debe verse así: 0614-123456-101-1', 'err');
     }
-    receiver = {
-      doc_type: 'ccf', name, nit,
-      nrc: (document.getElementById('posNrc')?.value || '').trim(),
-      address: (document.getElementById('posFiscalAddr')?.value || '').trim(),
-    };
+    const nrc = (document.getElementById('posNrc')?.value || '').trim();
+    const addr = (document.getElementById('posFiscalAddr')?.value || '').trim();
+    // Art. 114 num. 6 CT: el CCF lleva NIT, NRC y direccion del adquirente
+    if (!nrc) return api.toast('Para el CCF escribe el NRC del cliente', 'err');
+    if (!addr) return api.toast('Para el CCF escribe la dirección del cliente', 'err');
+    receiver = { doc_type: 'ccf', name, nit, nrc, address: addr };
   }
 
   // ---- tarjeta: voucher obligatorio ----
