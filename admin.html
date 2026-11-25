@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Panel · TechStore SV</title>
 <link rel="icon" href="assets/favicon.svg">
-<link rel="stylesheet" href="css/admin.css?v=5272cc65">
+<link rel="stylesheet" href="css/admin.css?v=e0e305a8">
 </head>
 <body>
 
@@ -270,22 +270,55 @@
         <button class="btn primary sm" id="btnNewUser">＋ Nuevo usuario</button>
       </div>
 
+      <div class="panel" style="margin-bottom:.8rem">
+        <div class="row wrap" style="gap:.5rem;align-items:center">
+          <div class="usr-chips" id="usrRoleChips"></div>
+          <input id="usrSearch" placeholder="Buscar por nombre o correo" style="max-width:230px;margin-left:auto" aria-label="Buscar usuario">
+        </div>
+      </div>
+
       <div class="panel">
         <div style="overflow-x:auto">
-          <table class="table" id="usersTable">
+          <table class="table stack-mobile" id="usersTable">
             <thead>
-              <tr><th>Nombre</th><th>Correo</th><th>Rol</th><th>Escaneo</th><th>Estado</th><th>Último acceso</th><th>Acciones</th></tr>
+              <tr>
+                <th class="sortable" data-sort="name" data-dir="">Nombre</th>
+                <th class="sortable" data-sort="email" data-dir="">Correo</th>
+                <th class="sortable th-split" data-sort="role">
+                  <span class="th-label">Rol <i class="th-dir"></i></span>
+                  <select class="th-sel" id="usrRoleFilter" aria-label="Filtrar por rol">
+                    <option value="all">Todos</option>
+                    <option value="admin">Administrador</option>
+                    <option value="operador">Operador</option>
+                    <option value="transportista">Transportista</option>
+                    <option value="community_manager">Community manager</option>
+                    <option value="cliente">Cliente</option>
+                  </select>
+                </th>
+                <th>Escaneo</th>
+                <th class="sortable th-split" data-sort="active">
+                  <span class="th-label">Estado <i class="th-dir"></i></span>
+                  <select class="th-sel" id="usrActiveFilter" aria-label="Filtrar por estado">
+                    <option value="all">Todos</option>
+                    <option value="1">Activos</option>
+                    <option value="0">Inactivos</option>
+                  </select>
+                </th>
+                <th class="sortable" data-sort="last" data-dir="">Último acceso</th>
+                <th>Acciones</th>
+              </tr>
             </thead>
             <tbody></tbody>
           </table>
         </div>
+        <p class="empty small muted" id="usersEmpty" hidden>Ningún usuario coincide con el filtro.</p>
       </div>
 
       <div class="panel" id="userCreds" hidden></div>
 
       <p class="small muted" style="margin-top:.8rem">
         Roles: <b>admin</b> ve todo y administra usuarios · <b>operador</b> usa pedidos, preparación, POS, ventas e inventario ·
-        <b>cliente</b> solo compra en la tienda.
+        <b>transportista</b> solo sus entregas · <b>cliente</b> solo compra en la tienda.
       </p>
     </section>
 
@@ -859,6 +892,6 @@
 <script src="vendor/zxing-library.min.js"></script>
 <script src="vendor/zxing-browser.min.js"></script>
 <script src="vendor/jsbarcode.min.js"></script>
-<script type="module" src="js/admin.js?v=0cd5b822"></script>
+<script type="module" src="js/admin.js?v=a9b82143"></script>
 </body>
 </html>

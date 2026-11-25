@@ -298,6 +298,30 @@ th.sortable[data-dir]:not([data-dir=""])::after{content:attr(data-dir);margin-le
 .theme-prev .tp-row{display:flex;gap:.3rem;align-items:center}
 .theme-prev .tp-card{flex:1;height:26px;border-radius:6px}
 .theme-prev .tp-btn{height:14px;width:44px;border-radius:4px}
+/* ---------- tabla de usuarios: selectores y filtros ---------- */
+.usr-chips{display:flex;gap:.35rem;flex-wrap:wrap}
+.usr-chip{
+  border:1px solid var(--line);background:var(--bg-3);color:var(--muted);border-radius:999px;
+  padding:.34rem .72rem;font-size:.76rem;font-weight:700;cursor:pointer;
+  display:inline-flex;align-items:center;gap:.35rem;transition:.15s
+}
+.usr-chip b{font-weight:800;color:var(--txt);font-variant-numeric:tabular-nums}
+.usr-chip:hover{border-color:var(--accent);color:var(--txt)}
+.usr-chip.active{border-color:var(--accent);color:var(--txt);background:rgba(99,102,241,.18)}
+.th-split{min-width:130px;vertical-align:top}
+.th-split .th-label{display:inline-flex;align-items:center;gap:.25rem}
+.th-split::after{display:none}
+.th-dir{font-style:normal;font-size:.7em;color:var(--accent)}
+.th-sel{
+  display:block;width:100%;max-width:130px;margin-top:.3rem;padding:.16rem .3rem;font-size:.66rem;
+  border-radius:6px;background:var(--bg-3);border:1px solid var(--line);color:var(--muted);
+  text-transform:none;letter-spacing:0;font-weight:700;cursor:pointer
+}
+.th-sel:focus{outline:2px solid var(--accent);outline-offset:1px}
+@media (max-width:600px){
+  #usrSearch{max-width:none !important;width:100%;flex:1 1 100%;margin-left:0 !important}
+}
+
 /* ---------- requisiciones ---------- */
 .badge.rq-borrador{background:var(--bg-3);color:var(--muted)}
 .badge.rq-solicitada{background:rgba(245,158,11,.16);color:var(--warn)}

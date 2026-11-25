@@ -2731,7 +2731,7 @@ $('#socialSave').addEventListener('click', async (e) => {
 });
 
 /* ---------------- usuarios y roles ---------------- */
-const ROLE_LABEL = { admin: 'Administrador', operador: 'Operador', transportista: 'Transportista', cliente: 'Cliente' };
+const ROLE_LABEL = { admin: 'Administrador', operador: 'Operador', transportista: 'Transportista', community_manager: 'Community manager', cliente: 'Cliente' };
 
 function randomPassword(len = 12) {
   const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
@@ -2769,51 +2769,191 @@ function showCredentials({ email, password, role, name }) {
   host.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
+const USERS = {
+  list: [],
+  cargada: false,
+  q: '',
+  role: 'all',
+  active: 'all',
+  sort: { key: 'name', dir: 'asc' },
+};
+
+const ROLE_ORDER = { admin: 0, operador: 1, transportista: 2, community_manager: 3, cliente: 4 };
+const norm = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
+function saveUsersPrefs() {
+  try {
+    localStorage.setItem('ts.users.prefs', JSON.stringify({
+      q: USERS.q, role: USERS.role, active: USERS.active, sort: USERS.sort,
+    }));
+  } catch { /* modo privado: se ignora */ }
+}
+
+function loadUsersPrefs() {
+  try {
+    const p = JSON.parse(localStorage.getItem('ts.users.prefs') || '{}');
+    if (typeof p.q === 'string') USERS.q = p.q;
+    if (p.role) USERS.role = p.role;
+    if (p.active) USERS.active = p.active;
+    if (p.sort?.key) USERS.sort = { key: p.sort.key, dir: p.sort.dir === 'desc' ? 'desc' : 'asc' };
+  } catch { /* preferencias corruptas: se usan los valores por defecto */ }
+}
+
+function usersFiltrados() {
+  const q = norm(USERS.q).trim();
+  const rows = USERS.list.filter((u) => {
+    if (USERS.role !== 'all' && u.role !== USERS.role) return false;
+    if (USERS.active !== 'all' && String(u.active) !== USERS.active) return false;
+    if (!q) return true;
+    return norm(u.full_name).includes(q) || norm(u.email).includes(q);
+  });
+
+  const { key, dir } = USERS.sort;
+  const mul = dir === 'asc' ? 1 : -1;
+  const byName = (a, b) => norm(a.full_name).localeCompare(norm(b.full_name));
+
+  rows.sort((a, b) => {
+    if (key === 'role') return (ROLE_ORDER[a.role] ?? 9) - (ROLE_ORDER[b.role] ?? 9) || byName(a, b);
+    if (key === 'active') return (Number(b.active) - Number(a.active)) * mul || byName(a, b);
+    if (key === 'last') {
+      const ta = a.last_sign_in ? new Date(a.last_sign_in).getTime() : -1;
+      const tb = b.last_sign_in ? new Date(b.last_sign_in).getTime() : -1;
+      return (ta - tb) * mul;
+    }
+    if (key === 'email') return norm(a.email).localeCompare(norm(b.email)) * mul;
+    return byName(a, b) * mul;
+  });
+  return rows;
+}
+
+function pintarUsuarios() {
+  const chipsEl = document.getElementById('usrRoleChips');
+  const conteo = { all: USERS.list.length };
+  USERS.list.forEach((u) => { conteo[u.role] = (conteo[u.role] || 0) + 1; });
+
+  const chips = [['all', 'Todos'], ['admin', 'Admin'], ['operador', 'Operadores'], ['transportista', 'Transportistas']];
+  if (conteo.community_manager) chips.push(['community_manager', 'Marketing']);
+  chips.push(['cliente', 'Clientes']);
+
+  if (chipsEl) {
+    chipsEl.innerHTML = chips.map(([v, label]) => `
+      <button type="button" class="usr-chip ${USERS.role === v ? 'active' : ''}" data-role-chip="${v}">
+        ${label} <b>${conteo[v] || 0}</b></button>`).join('');
+  }
+
+  const selRole = document.getElementById('usrRoleFilter');
+  if (selRole) selRole.value = USERS.role;
+  const selActive = document.getElementById('usrActiveFilter');
+  if (selActive) selActive.value = USERS.active;
+  const search = document.getElementById('usrSearch');
+  if (search && search.value !== USERS.q) search.value = USERS.q;
+
+  document.querySelectorAll('#usersTable th[data-sort]').forEach((th) => {
+    const activo = th.dataset.sort === USERS.sort.key;
+    th.classList.toggle('sorted', activo);
+    const dir = activo ? (USERS.sort.dir === 'asc' ? '▲' : '▼') : '';
+    th.dataset.dir = dir;
+    const flecha = th.querySelector('.th-dir');
+    if (flecha) flecha.textContent = dir;
+  });
+
+  const rows = usersFiltrados();
+  const tbody = $('#usersTable').querySelector('tbody');
+  const vacio = document.getElementById('usersEmpty');
+  if (vacio) vacio.hidden = rows.length > 0;
+
+  tbody.innerHTML = rows.map((u) => {
+    const self = u.id === state.profile.id;
+    return `<tr>
+      <td data-label="Nombre">${esc(u.full_name || '—')}${self ? ' <span class="small muted">(tú)</span>' : ''}</td>
+      <td data-label="Correo" class="small mono">${esc(u.email || '')}</td>
+      <td data-label="Rol">
+        <select class="btn sm" data-role="${u.id}" ${self ? 'disabled' : ''}>
+          ${['admin', 'operador', 'transportista', 'community_manager', 'cliente']
+            .map((r) => `<option value="${r}" ${u.role === r ? 'selected' : ''}>${ROLE_LABEL[r] || r}</option>`)
+            .join('')}
+        </select>
+      </td>
+      <td data-label="Escaneo">${u.role === 'transportista'
+        ? `<button class="btn sm ${u.scan_delivery ? '' : 'ghost'}" data-scanperm="${u.id}" data-on="${u.scan_delivery}">
+             ${u.scan_delivery ? '📷 Activo' : 'Apagado'}</button>`
+        : '<span class="small muted">—</span>'}</td>
+      <td data-label="Estado">${u.active
+        ? '<span class="badge entregado">Activo</span>'
+        : '<span class="badge cancelado">Inactivo</span>'}</td>
+      <td data-label="Último acceso" class="small muted">${u.last_sign_in ? fmtDate(u.last_sign_in) : 'nunca'}</td>
+      <td data-label="Acciones" class="row" style="gap:.35rem">
+        <button class="btn sm" data-reset="${u.id}" data-email="${esc(u.email || '')}">Contraseña</button>
+        ${self ? '' : `<button class="btn sm ${u.active ? 'danger' : ''}" data-toggle="${u.id}" data-active="${u.active}">
+            ${u.active ? 'Desactivar' : 'Activar'}
+          </button>`}
+      </td>
+    </tr>`;
+  }).join('');
+}
+
 async function renderUsers() {
   if (state.profile?.role !== 'admin') {
     toast('Solo el administrador puede ver los usuarios', 'err');
     return setView('orders');
   }
+  if (!USERS.cargada) {
+    loadUsersPrefs();
+    USERS.cargada = true;
+  }
+
   const tbody = $('#usersTable').querySelector('tbody');
-  tbody.innerHTML = '<tr><td colspan="6" class="small muted">Cargando…</td></tr>';
+  if (!USERS.list.length) tbody.innerHTML = '<tr><td colspan="7" class="small muted">Cargando…</td></tr>';
 
   const { data, error } = await sb.rpc('ts_admin_list_users');
   if (error) {
     tbody.innerHTML = '';
     return toast(errMessage(error), 'err');
   }
-
-  tbody.innerHTML = (data || [])
-    .map((u) => {
-      const self = u.id === state.profile.id;
-      return `<tr>
-        <td>${esc(u.full_name || '—')}${self ? ' <span class="small muted">(tú)</span>' : ''}</td>
-        <td class="small mono">${esc(u.email || '')}</td>
-        <td>
-          <select class="btn sm" data-role="${u.id}" ${self ? 'disabled' : ''}>
-            ${['admin', 'operador', 'transportista', 'cliente']
-              .map((r) => `<option value="${r}" ${u.role === r ? 'selected' : ''}>${ROLE_LABEL[r]}</option>`)
-              .join('')}
-          </select>
-        </td>
-        <td>${u.role === 'transportista'
-          ? `<button class="btn sm ${u.scan_delivery ? '' : 'ghost'}" data-scanperm="${u.id}" data-on="${u.scan_delivery}">
-               ${u.scan_delivery ? '📷 Activo' : 'Apagado'}</button>`
-          : '<span class="small muted">—</span>'}</td>
-        <td>${u.active
-          ? '<span class="badge entregado">Activo</span>'
-          : '<span class="badge cancelado">Inactivo</span>'}</td>
-        <td class="small muted">${u.last_sign_in ? fmtDate(u.last_sign_in) : 'nunca'}</td>
-        <td class="row" style="gap:.35rem">
-          <button class="btn sm" data-reset="${u.id}" data-email="${esc(u.email || '')}">Contraseña</button>
-          ${self ? '' : `<button class="btn sm ${u.active ? 'danger' : ''}" data-toggle="${u.id}" data-active="${u.active}">
-              ${u.active ? 'Desactivar' : 'Activar'}
-            </button>`}
-        </td>
-      </tr>`;
-    })
-    .join('');
+  USERS.list = data || [];
+  pintarUsuarios();
 }
+
+/* filtros, orden y selectores de la tabla de usuarios */
+$('#usrRoleChips')?.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-role-chip]');
+  if (!b) return;
+  USERS.role = b.dataset.roleChip;
+  saveUsersPrefs();
+  pintarUsuarios();
+});
+
+$('#usrRoleFilter')?.addEventListener('change', (e) => {
+  USERS.role = e.target.value;
+  saveUsersPrefs();
+  pintarUsuarios();
+});
+
+$('#usrActiveFilter')?.addEventListener('change', (e) => {
+  USERS.active = e.target.value;
+  saveUsersPrefs();
+  pintarUsuarios();
+});
+
+$('#usrSearch')?.addEventListener('input', (e) => {
+  USERS.q = e.target.value;
+  saveUsersPrefs();
+  pintarUsuarios();
+});
+
+$('#usersTable')?.querySelector('thead')?.addEventListener('click', (e) => {
+  if (e.target.closest('.th-sel')) return; // el desplegable filtra, no ordena
+  const th = e.target.closest('th[data-sort]');
+  if (!th) return;
+  const key = th.dataset.sort;
+  if (USERS.sort.key === key) {
+    USERS.sort.dir = USERS.sort.dir === 'asc' ? 'desc' : 'asc';
+  } else {
+    USERS.sort = { key, dir: 'asc' };
+  }
+  saveUsersPrefs();
+  pintarUsuarios();
+});
 
 $('#usersTable').addEventListener('click', async (e) => {
   const b = e.target.closest('[data-scanperm]');
