@@ -45,6 +45,7 @@ Son cuentas de sandbox con correo ya confirmado. **Las contraseñas no se guarda
 - **Clientes** (admin y operador): consolidado por cuenta con pedidos, gasto acumulado, ticket promedio, última compra y búsqueda por nombre/correo/teléfono. Ficha con historial completo, direcciones y **notas internas** del equipo.
 - **Proveedores y compras** (solo administrador, porque muestra costos): catálogo de proveedores con contacto y NIT; registro de compras **pendientes** que, al recibirlas, suman stock, dejan movimiento de inventario `entrada` y actualizan el costo del producto (base del margen).
 - **Requisiciones de compra y de servicios** (el personal solicita, **solo el CEO aprueba y paga**): documento con folio `REQ-00001` que sigue el ciclo **borrador → por aprobar → aprobada → orden de compra `OC-00001` → recibida → facturada → pagada → cerrada**, con `rechazada`/`anulada` por motivo y **sin borrado**. Cada paso lo firma quien lo ejecuta y queda en el historial. Sirve para mercancía (entra al inventario y actualiza el costo al recibir) y para servicios (mantenimiento, limpieza) **sin crear productos ficticios**. Guarda **departamento solicitante, justificación, cotizaciones comparadas, documentos y sello de aprobación**.
+- **Contingencias por daño antes de entrega** (⚠ en la ficha del pedido): se reporta el daño con **gravedad** (leve 5% / moderado 10% / grave-funcional 20% / **no funcional**, que no se ofrece), descripción y **foto obligatoria**. **Solo el CEO autoriza** y aplica la decisión; el cliente recibe un enlace propio (24 h) donde elige **sustitución**, **recibir con descuento**, **cancelar ese producto** o **cancelar todo**. La unidad dañada entra a **inventario de averías** (`ts_damaged_stock`), el reembolso queda registrado como pago y la disculpa se emite como cupón **adicional**. Pedido con contingencia abierta **no se puede entregar**.
 - **Reparto a domicilio** (transportista): se le asigna un pedido desde Preparación; en su panel ve solo **sus** entregas **del día** (más pestañas de pendientes de días anteriores e historial) con dirección, teléfono, bultos e importe, avisa "salir a ruta" y confirma la entrega. Su cuenta no tiene acceso a pedidos ajenos, inventario, costos, ventas, clientes ni configuración.
 - **Escaneo de bultos en la entrega**: el transportista escanea con la cámara del teléfono la etiqueta de cada producto (SKU o código de barras) o la etiqueta del pedido, y el sistema lleva la cuenta `1/2`. **No puede marcar "Entregado" hasta escanear todos los bultos**, y cada lectura queda registrada con fecha y usuario. El permiso se puede apagar por usuario desde Usuarios → columna "Escaneo".
 - **Caja por turno** (admin y operador): apertura con fondo inicial, ventas en efectivo del turno, ingresos/egresos/retiros, **arqueo por denominación** al cerrar y diferencia (sobrante o faltante). Sin caja abierta el POS no puede cobrar.
@@ -99,6 +100,27 @@ abrir (fondo) → vender en POS → ingresos / egresos / retiros → cerrar (arq
 - Lo esperado en el cajón = `fondo + ventas en efectivo + ingresos − egresos − retiros`. Los pagos con tarjeta o transferencia **no** suman al efectivo.
 - El cierre guarda el **conteo por denominación** (de $100 a 1¢) y la diferencia; queda en el historial con el nombre de quién abrió el turno.
 - El cobro exige caja abierta **en el servidor**, no solo en la pantalla: una llamada directa a `ts_confirm_payment` para un pedido POS sin turno devuelve error y el pedido sigue pendiente.
+
+## Cómo funciona una contingencia
+
+```
+pedido pagado/preparando
+   ↓ (operador reporta ⚠ en la ficha del pedido, con foto)
+reportado → autorizado (solo CEO) → aviso al cliente (token, 24 h) → el cliente decide
+   ↓
+resuelto: sustitución · descuento · cancelación del producto · cancelación total
+```
+
+- **Gravedades y descuento:** leve 5%, moderado 10%, grave 20%. El tope se puede bajar por producto con `ts_products.contingency_cap` (se fija al ingresarlo al inventario) y el global vive en `ts_settings.contingency`.
+- **"No funcional" no se ofrece con descuento**: solo sustitución o devolución. El sistema no genera esa opción.
+- **Foto obligatoria:** sin un archivo en `ts_incident_docs` la función `ts_incident_authorize` rechaza la autorización.
+- **El cliente decide en `contingencia.html?t=<token>`**, sin cuenta ni contraseña, con las opciones ordenadas por conveniencia (sustitución primero). Solo puede responder **una vez** y solo sobre las opciones que se le ofrecieron; el servidor lo valida.
+- **Al resolver:**
+  - *Sustituir* → descuenta 1 del stock, deja movimiento `ajuste` y pasa la unidad dañada a `ts_damaged_stock` (`AVR-00001`).
+  - *Aceptar con descuento* → emite cupón `AVR-…` por el % de la gravedad (90 días, 1 uso).
+  - *Cancelar producto / todo* → recalcula el pedido, registra el **reembolso** en `ts_payments` (`reembolso_contingencia`) y emite cupón de disculpa `DIS-…` **adicional**.
+- **Candado:** un trigger impide pasar el pedido a `en_ruta` o `entregado` mientras exista una contingencia no resuelta.
+- **Tablas:** `ts_incidents`, `ts_incident_events`, `ts_incident_docs`, `ts_incident_offers`, `ts_damaged_stock`.
 
 ## Cómo funciona una requisición
 
@@ -196,6 +218,9 @@ Tablas con prefijo `ts_` para convivir con las tablas `shop_*` de la otra tienda
 | `ts_requisitions`, `ts_requisition_items` | Requisiciones de compra o servicio con su detalle |
 | `ts_requisition_quotes`, `ts_requisition_docs` | Cotizaciones comparadas y documentos (bucket privado) |
 | `ts_requisition_events`, `ts_departments` | Historial del flujo y centros de costo |
+| `ts_incidents`, `ts_incident_docs` | Contingencias por daño con sus pruebas fotográficas |
+| `ts_incident_events`, `ts_incident_offers` | Historial y el aviso con token que recibe el cliente |
+| `ts_damaged_stock` | Inventario de averías (`AVR-…`) para liquidación |
 
 **RLS activo en todas.** Reglas principales:
 
@@ -220,6 +245,26 @@ Para conectar Wompi:
 node serve.mjs 5180     # http://localhost:5180
 python tools/make_images.py   # regenerar las imágenes del catálogo
 ```
+
+## Verificación ejecutada — contingencias (2026-11-25)
+
+| Prueba | Resultado |
+|---|---|
+| Reporte de daño moderado (`Bassline Buds`, $45) | `CON-00001`, 10%, **$4.50** de descuento ✅ |
+| Reporte de daño leve (`BackupBox 2TB`, $89) | `CON-00003`, 5%, **$4.45** ✅ |
+| Daño **no funcional** | 0% y **sin opción de descuento**; solo sustituir/cancelar ✅ |
+| Autorizar sin foto | rechazado por el servidor ✅ |
+| Aviso al cliente | token propio, 4 opciones, vence en **24 h** ✅ |
+| Vista del cliente sin sesión | nombre, producto, daño y opciones (sustitución primero) ✅ |
+| Responder dos veces | rechazado: *"Ya registramos tu respuesta"* ✅ |
+| Token falso | rechazado: *"Enlace no válido"* ✅ |
+| Sustitución | stock AUD-303 **73 → 72**, avería `AVR-00002` con costo $34.50 ✅ |
+| Aceptar con descuento | cupón `AVR-00003-134A` (5%, 90 días, 1 uso) ✅ |
+| Cancelar todo (`TEC-001010`) | pedido **reembolsado**, pago de **$35** y cupón `DIS-00005-8521` ✅ |
+| Candado de entrega | `en_ruta` y `entregado` rechazados con contingencia abierta ✅ |
+| Foto real desde la ficha del pedido | subida a `ts-documentos`, abierta con enlace firmado (**HTTP 200**, image/png) ✅ |
+
+Datos de prueba eliminados: 0 contingencias, 0 averías, 0 cupones de prueba, stock restaurado, secuencias reiniciadas.
 
 ## Verificación ejecutada — requisiciones (2026-11-25)
 

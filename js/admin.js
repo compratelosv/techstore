@@ -3,7 +3,8 @@ import { sb, money, esc, toast, fmtDate, errMessage, STATUS_LABEL, getUser, load
 import { initPos, scanOnce, scanStream, stopScan, scanFeedback } from './pos.js?v=926d48b5';
 import { Scanner } from './scanner.js?v=90ef2e67';
 import { initMarketing, loadMarketing, renderMarketing, renderEditorial, renderContent, renderMetrics } from './marketing.js?v=7ad6e894';
-import { initRequisitions, loadRequisitions, renderRequisitions } from './requisitions.js?v=8c1d4a2f';
+import { initRequisitions, loadRequisitions, renderRequisitions } from './requisitions.js?v=08a54485';
+import { initIncidents, loadIncidents, renderIncidents, openDamageForm, openIncident } from './incidents.js?v=414f354f';
 
 /* ---------------- estado ---------------- */
 const state = {
@@ -150,6 +151,7 @@ async function boot() {
   initPos({ sb, money, esc, toast, errMessage });
   initMarketing();
   initRequisitions(isAdmin);
+  initIncidents(isAdmin);
   const target = viewFromHash();
   if (target === 'deliveries' || (target === 'users' && !isAdmin)) {
     setView('orders');
@@ -219,6 +221,7 @@ const TITLES = {
   settings: ['Configuración', 'Negocio, apariencia, cobros y redes sociales'],
   inventory: ['Inventario', 'Stock, precios y movimientos'],
   requisitions: ['Requisiciones', 'Compras y servicios: solicitud, aprobación del CEO, recepción y pago'],
+  incidents: ['Contingencias', 'Daños antes de la entrega: gravedad, aviso al cliente y resolución'],
   marketing: ['Marketing', 'Redes del negocio, audiencia y estado de conexión'],
   editorial: ['Calendario editorial', 'Qué se publica cada día y en qué estado está'],
   content: ['Contenido', 'Piezas, borradores y publicaciones'],
@@ -242,6 +245,7 @@ const HASH_TO_VIEW = {
   configuracion: 'settings', settings: 'settings',
   inventario: 'inventory', inventory: 'inventory',
   requisiciones: 'requisitions', requisitions: 'requisitions',
+  contingencias: 'incidents', incidents: 'incidents',
   marketing: 'marketing', editorial: 'editorial',
   contenido: 'content', content: 'content',
   metricas: 'metrics', metrics: 'metrics', metricas_marketing: 'metrics',
@@ -252,7 +256,7 @@ const VIEW_TO_HASH = {
   deliveries: 'entregas',
   customers: 'clientes', suppliers: 'proveedores',
   sales: 'ventas', users: 'usuarios', settings: 'configuracion', inventory: 'inventario',
-  requisitions: 'requisiciones',
+  requisitions: 'requisiciones', incidents: 'contingencias',
   marketing: 'marketing', editorial: 'editorial', content: 'contenido', metrics: 'metricas',
 };
 
@@ -278,7 +282,7 @@ function setView(view, { syncHash = true } = {}) {
   }
   state.view = view;
   $$('#sideNav button').forEach((b) => b.classList.toggle('active', b.dataset.view === view));
-  ['orders', 'fulfillment', 'deliveries', 'pos', 'cash', 'agenda', 'promos', 'quotes', 'customers', 'suppliers', 'sales', 'users', 'settings', 'inventory', 'marketing', 'editorial', 'content', 'metrics', 'requisitions'].forEach((v) => {
+  ['orders', 'fulfillment', 'deliveries', 'pos', 'cash', 'agenda', 'promos', 'quotes', 'customers', 'suppliers', 'sales', 'users', 'settings', 'inventory', 'marketing', 'editorial', 'content', 'metrics', 'requisitions', 'incidents'].forEach((v) => {
     const sec = $(`#view-${v}`);
     if (sec) sec.classList.toggle('hidden', v !== view);
   });
@@ -293,6 +297,7 @@ function setView(view, { syncHash = true } = {}) {
   if (view === 'deliveries') renderDeliveries();
   if (view === 'inventory') renderInventory();
   if (view === 'requisitions') loadRequisitions().then(() => renderRequisitions(state.profile?.role === 'admin'));
+  if (view === 'incidents') loadIncidents().then(() => renderIncidents());
   if (view === 'pos') renderPos();
   if (view === 'cash') renderCash();
   if (view === 'agenda') { renderCalendar(); }
@@ -648,6 +653,8 @@ async function openOrder(id) {
               <td>${esc(i.name)}</td>
               <td class="num">×${i.qty}</td>
               <td class="num">${money(i.line_total)}</td>
+              <td class="num"><button class="btn sm ghost" title="Reportar daño antes de entregar"
+                data-damage="${i.id}" data-sku="${esc(i.sku)}" data-name="${esc(i.name)}">⚠</button></td>
             </tr>`).join('')}
           </tbody>
         </table>
@@ -763,6 +770,14 @@ function renderKanban() {
     if (t) openOrder(t.dataset.open);
   };
 }
+
+/* reportar daño desde la ficha del pedido */
+$('#dBody').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-damage]');
+  if (!b) return;
+  e.preventDefault();
+  openDamageForm(b.dataset.damage, { sku: b.dataset.sku, name: b.dataset.name });
+});
 
 /* ---------------- repartidores ---------------- */
 async function loadCouriers() {

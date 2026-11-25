@@ -298,6 +298,20 @@ th.sortable[data-dir]:not([data-dir=""])::after{content:attr(data-dir);margin-le
 .theme-prev .tp-row{display:flex;gap:.3rem;align-items:center}
 .theme-prev .tp-card{flex:1;height:26px;border-radius:6px}
 .theme-prev .tp-btn{height:14px;width:44px;border-radius:4px}
+/* ---------- contingencias ---------- */
+.inc-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:.55rem .9rem;font-size:.84rem}
+.inc-grid span{display:block;font-size:.64rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:800;margin-bottom:.1rem}
+.badge.inc-leve{background:rgba(56,189,248,.16);color:var(--info)}
+.badge.inc-moderado{background:rgba(245,158,11,.16);color:var(--warn)}
+.badge.inc-grave{background:rgba(239,68,68,.16);color:var(--bad)}
+.badge.inc-no_funcional{background:#4a1020;color:#ff8fa3}
+.badge.incs-reportado{background:var(--bg-3);color:var(--muted)}
+.badge.incs-autorizado{background:rgba(56,189,248,.16);color:var(--info)}
+.badge.incs-notificado{background:rgba(245,158,11,.16);color:var(--warn)}
+.badge.incs-decidido{background:rgba(99,102,241,.18);color:#a5b4fc}
+.badge.incs-resuelto{background:rgba(16,185,129,.16);color:var(--ok)}
+.badge.incs-anulado{background:rgba(148,163,184,.18);color:var(--muted)}
+
 /* ---------- tabla de usuarios: selectores y filtros ---------- */
 .usr-chips{display:flex;gap:.35rem;flex-wrap:wrap}
 .usr-chip{

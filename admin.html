@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Panel · TechStore SV</title>
 <link rel="icon" href="assets/favicon.svg">
-<link rel="stylesheet" href="css/admin.css?v=e0e305a8">
+<link rel="stylesheet" href="css/admin.css?v=61305244">
 </head>
 <body>
 
@@ -80,6 +80,7 @@
         <div class="nav-group-title">Administración</div>
         <button data-view="inventory" id="navInventory">📊 Inventario</button>
         <button data-view="requisitions" id="navRequisitions">📋 Requisiciones</button>
+        <button data-view="incidents" id="navIncidents">⚠️ Contingencias</button>
         <button data-view="promos" id="navPromos">🎟️ Promos</button>
         <button data-view="suppliers" id="navSuppliers">🚚 Proveedores</button>
         <button data-view="users" id="navUsers">👥 Usuarios</button>
@@ -779,6 +780,26 @@
       </div>
     </section>
 
+    <!-- CONTINGENCIAS -->
+    <section id="view-incidents" class="hidden">
+      <div id="incKpis" class="kpis"></div>
+      <div class="panel">
+        <p class="small muted" style="margin-top:0">
+          Daños detectados antes de entregar. Se reportan desde la ficha del pedido (⚠ junto al producto).
+          Solo el CEO autoriza el descuento y aplica la decisión del cliente.
+        </p>
+        <div style="overflow-x:auto">
+          <table class="table stack-mobile" id="incTable">
+            <thead>
+              <tr><th>Folio</th><th>Producto</th><th>Gravedad</th><th class="num">Descuento</th><th>Estado</th><th>Fecha</th><th></th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <p class="empty small muted" id="incEmpty" hidden>Sin contingencias registradas.</p>
+      </div>
+    </section>
+
     <!-- MARKETING -->
     <section id="view-marketing" class="hidden">
       <div id="mktKpis" class="kpis"></div>
@@ -892,6 +913,6 @@
 <script src="vendor/zxing-library.min.js"></script>
 <script src="vendor/zxing-browser.min.js"></script>
 <script src="vendor/jsbarcode.min.js"></script>
-<script type="module" src="js/admin.js?v=a9b82143"></script>
+<script type="module" src="js/admin.js?v=ddc41fbb"></script>
 </body>
 </html>

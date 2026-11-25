@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aviso sobre tu pedido · TechStore SV</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root{color-scheme:light dark}
+  *{box-sizing:border-box}
+  body{margin:0;background:#0b1020;color:#e8ecf6;font-family:Inter,system-ui,-apple-system,sans-serif;
+       min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:20px}
+  .card{width:100%;max-width:560px;background:#121a30;border:1px solid #253150;border-radius:18px;
+        padding:26px 22px;box-shadow:0 24px 60px -30px #000}
+  .brand{font-size:.72rem;letter-spacing:.22em;text-transform:uppercase;color:#8ea0c8;font-weight:800}
+  h1{font-size:1.32rem;line-height:1.3;margin:.7rem 0 .5rem}
+  p{margin:0 0 .8rem;line-height:1.55;font-size:.94rem;color:#c8d2e8}
+  .prod{background:#0c1428;border:1px solid #23304d;border-radius:12px;padding:12px 14px;margin:14px 0;font-size:.88rem}
+  .prod b{color:#fff}
+  .opt{display:block;width:100%;text-align:left;background:#182238;border:1.5px solid #2b3a5c;color:#e8ecf6;
+       border-radius:13px;padding:14px 16px;margin-bottom:10px;font-size:.92rem;font-weight:600;cursor:pointer;
+       transition:.15s;font-family:inherit}
+  .opt:hover:not(:disabled){border-color:#5b7cfa;background:#1c2942}
+  .opt small{display:block;font-weight:400;color:#93a4c6;margin-top:.25rem;font-size:.8rem}
+  .opt.primary{border-color:#5b7cfa;background:linear-gradient(180deg,#22305a,#1a2540)}
+  .opt:disabled{opacity:.5;cursor:default}
+  .ok{background:#0f2e26;border-color:#1f6f57}
+  .note{font-size:.78rem;color:#8ea0c8;margin-top:14px}
+  .err{background:#2c1320;border:1px solid #5c2233;color:#ffb3c1;padding:14px;border-radius:12px;font-size:.9rem}
+  .cho{font-size:.86rem;background:#0c1428;border:1px solid #23304d;border-radius:12px;padding:14px;margin-top:12px}
+</style>
+</head>
+<body>
+<div class="card" id="app"><p>Cargando…</p></div>
+
+<script src="vendor/supabase.js"></script>
+<script type="module" src="js/contingencia.js?v=c5d37b46"></script>
+</body>
+</html>
