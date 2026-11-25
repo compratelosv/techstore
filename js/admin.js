@@ -6,7 +6,7 @@ import { initMarketing, loadMarketing, renderMarketing, renderEditorial, renderC
 import { initRequisitions, loadRequisitions, renderRequisitions } from './requisitions.js?v=08a54485';
 import { initIncidents, loadIncidents, renderIncidents, openDamageForm, openIncident } from './incidents.js?v=414f354f';
 import { initSupport, loadCases, renderCases } from './support.js?v=d2569642';
-import { initFiscal, loadFiscal } from './fiscal.js?v=645763ea';
+import { initFiscal, loadFiscal } from './fiscal.js?v=c8826954';
 
 /* ---------------- estado ---------------- */
 const state = {

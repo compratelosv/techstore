@@ -47,9 +47,11 @@ function renderFiscal() {
   if (on) on.checked = !!cfg.enabled;
 
   const st = document.getElementById('fiscalState');
+  const completo = !!(cfg.nit && cfg.nrc && cfg.legal_name && cfg.address_line);
   if (st) {
-    const completo = !!(cfg.nit && cfg.nrc && cfg.legal_name && cfg.address_line);
-    st.innerHTML = cfg.enabled
+    st.innerHTML = cfg.is_demo
+      ? '<span class="badge pendiente">Datos de prueba · no emitir</span>'
+      : cfg.enabled
       ? '<span class="badge entregado">Facturación electrónica activa</span>'
       : completo
       ? '<span class="badge pendiente">Datos cargados · emisión desactivada</span>'
@@ -58,7 +60,12 @@ function renderFiscal() {
 
   const warn = document.getElementById('fiscalWarn');
   if (warn) {
-    warn.hidden = !!cfg.enabled;
+    // el aviso permanece mientras los datos sean de prueba, aunque la emisión esté activa
+    warn.hidden = !!cfg.enabled && !cfg.is_demo;
+    if (cfg.is_demo) {
+      warn.innerHTML = '<p class="small" style="margin:0;color:#fca5a5"><b>Datos fiscales de prueba.</b> ' +
+        'Mientras no cargues tu NIT y NRC reales, ningún documento puede tomarse como válido ante Hacienda.</p>';
+    }
   }
 }
 
