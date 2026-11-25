@@ -16,6 +16,8 @@ let cart = []; // [{id, sku, barcode, name, price, qty, stock}]
 let scanner = null;
 let pendingScan = null; // resolve() de scanOnce(): lectura suelta para un formulario
 let pendingStream = null; // lectura continua: { onCode, resolve }
+let customer = null; // cliente de mostrador elegido
+let promo = null; // { code, discount, label }
 
 const $ = (s) => document.querySelector(s);
 
@@ -66,6 +68,20 @@ export function initPos(deps) {
     renderCart();
   });
   $('#posCharge').addEventListener('click', charge);
+
+  // documento, cliente, cupón y tarjeta
+  document.getElementById('posDocType')?.addEventListener('change', syncDocFields);
+  document.getElementById('posMethod')?.addEventListener('change', syncPayFields);
+  document.getElementById('posCustomerFind')?.addEventListener('click', findCustomer);
+  document.getElementById('posCustomerSearch')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); findCustomer(); }
+  });
+  document.getElementById('posCustomerNew')?.addEventListener('click', newCustomer);
+  document.getElementById('posPromoApply')?.addEventListener('click', applyPromo);
+  document.getElementById('posPromoClear')?.addEventListener('click', clearPromo);
+  document.getElementById('posPromo')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); applyPromo(); }
+  });
 
   loadProducts();
 }
@@ -323,6 +339,17 @@ function total() {
   return cart.reduce((n, i) => n + i.price * i.qty, 0);
 }
 
+function discountAmount() {
+  if (!promo) return 0;
+  // promo.discount ya viene como MONTO calculado por el servidor (ts_promo_eval),
+  // el mismo que aplica ts_place_order al cobrar: nunca se recalcula aquí.
+  return Math.min(total(), Number(promo.discount) || 0);
+}
+
+function finalTotal() {
+  return Math.max(0, Math.round((total() - discountAmount()) * 100) / 100);
+}
+
 function renderCart() {
   $('#posLines').innerHTML = cart
     .map(
@@ -345,11 +372,22 @@ function renderCart() {
     )
     .join('');
   $('#posEmpty').hidden = cart.length > 0;
-  $('#posTotal').textContent = api.money(total());
+  $('#posTotal').textContent = api.money(finalTotal());
+
+  const dline = document.getElementById('posDiscountLine');
+  if (dline) {
+    const d = discountAmount();
+    dline.hidden = d <= 0;
+    if (d > 0) {
+      dline.innerHTML = `Descuento <b>${api.esc(promo.code)}</b>: −${api.money(d)}
+        <span class="muted">(antes ${api.money(total())})</span>`;
+    }
+  }
+
   $('#posCharge').disabled = cart.length === 0;
   $('#posCharge').textContent = cart.length
-    ? `Cobrar ${api.money(total())}`
-    : 'Cobrar y generar pedido';
+    ? `Cobrar ${api.money(finalTotal())}`
+    : 'Cobrar, emitir e imprimir';
   const count = $('#scanCount');
   if (count) count.textContent = `${cartCount()} artículos · ${api.money(total())}`;
 }
@@ -381,33 +419,62 @@ function renderProducts() {
 async function charge() {
   if (!cart.length) return;
   const btn = $('#posCharge');
+  const docType = document.getElementById('posDocType')?.value || 'factura';
+  const method = $('#posMethod').value;
+
+  // ---- receptor fiscal ----
+  let receiver = { doc_type: 'factura', name: customer?.name || 'Consumidor final', nit: '', nrc: '', address: '' };
+  if (docType === 'ccf') {
+    const nit = (document.getElementById('posNit')?.value || '').trim();
+    const name = (document.getElementById('posFiscalName')?.value || customer?.name || '').trim();
+    if (!nit) return api.toast('Para el CCF escribe el NIT del cliente', 'err');
+    if (!name) return api.toast('Para el CCF escribe el nombre o razón social', 'err');
+    if (!/^\d{4}-\d{6}-\d{3}-\d{1}$/.test(nit)) {
+      return api.toast('El NIT debe verse así: 0614-123456-101-1', 'err');
+    }
+    receiver = {
+      doc_type: 'ccf', name, nit,
+      nrc: (document.getElementById('posNrc')?.value || '').trim(),
+      address: (document.getElementById('posFiscalAddr')?.value || '').trim(),
+    };
+  }
+
+  // ---- tarjeta: voucher obligatorio ----
+  let auth = '';
+  let last4 = '';
+  if (method === 'tarjeta') {
+    auth = (document.getElementById('posCardAuth')?.value || '').trim();
+    last4 = (document.getElementById('posCardLast4')?.value || '').trim();
+    if (!auth) return api.toast('Anota el número de autorización del voucher', 'err');
+    if (last4 && !/^\d{4}$/.test(last4)) return api.toast('Los últimos 4 deben ser 4 dígitos', 'err');
+  }
+
   btn.disabled = true;
   btn.textContent = 'Cobrando…';
 
-  const customerName = ($('#posName').value || '').trim() || 'Consumidor final';
-  const method = $('#posMethod').value;
-
   // Sin caja abierta no se puede cobrar: el efectivo no se podría arquear.
   const { data: cash, error: cashErr } = await api.sb.rpc('ts_cash_current');
-  if (cashErr) {
-    api.toast(api.errMessage(cashErr), 'err');
+  if (cashErr || !cash) {
+    api.toast(cashErr ? api.errMessage(cashErr) : 'Abre la caja antes de cobrar (menú Caja)', 'err');
     btn.disabled = false;
-    btn.textContent = 'Cobrar';
-    return;
-  }
-  if (!cash) {
-    api.toast('Abre la caja antes de cobrar (menú Caja)', 'err');
-    btn.disabled = false;
-    btn.textContent = 'Cobrar';
+    renderCart();
     return;
   }
 
   const { data: order, error } = await api.sb.rpc('ts_place_order', {
     p_items: cart.map((i) => ({ product_id: i.id, qty: i.qty })),
     p_fulfillment: 'retiro',
-    p_customer: { name: customerName, email: null, phone: null },
+    p_customer: {
+      name: receiver.name,
+      email: customer?.email || null,
+      phone: customer?.phone || null,
+      nit: receiver.nit || null,
+      nrc: receiver.nrc || null,
+      address: receiver.address || null,
+    },
     p_shipping: {},
     p_channel: 'pos',
+    p_promo: promo?.code || null,
   });
 
   if (error) {
@@ -417,10 +484,14 @@ async function charge() {
     return;
   }
 
+  const reference = method === 'tarjeta'
+    ? `POS-${auth}${last4 ? '-' + last4 : ''}`
+    : `POS-${Date.now()}`;
+
   const { error: payErr } = await api.sb.rpc('ts_confirm_payment', {
     p_order_id: order.id,
-    p_provider: method === 'efectivo' ? 'efectivo' : method,
-    p_reference: `POS-${Date.now()}`,
+    p_provider: method,
+    p_reference: reference,
   });
 
   if (payErr) {
@@ -430,10 +501,241 @@ async function charge() {
     return;
   }
 
+  // ---- documento (control interno, no fiscal todavía) ----
+  let docId = null;
+  const { data: doc, error: docErr } = await api.sb.rpc('ts_pos_issue_doc', {
+    p_order_id: order.id,
+    p_doc_type: docType,
+    p_receiver: receiver,
+    p_payment: { method, auth: auth || null, last4: last4 || null },
+    p_total_letters: numeroLetras(order.total),
+  });
+  if (docErr) {
+    api.toast(`Cobro hecho, pero el documento falló: ${api.errMessage(docErr)}`, 'err');
+  } else {
+    docId = doc.id;
+  }
+
   api.toast(`Venta ${order.code} cobrada · ${api.money(order.total)}`);
+  const usedPromo = promo?.code;
   cart = [];
-  $('#posName').value = '';
+  promo = null;
+  customer = null;
+  resetPosFields();
   await loadProducts();
   renderCart();
-  document.dispatchEvent(new CustomEvent('pos:sale', { detail: order }));
+  document.dispatchEvent(new CustomEvent('pos:sale', { detail: order, promo: usedPromo }));
+  if (docId) window.open(`ticket.html?d=${docId}`, '_blank', 'noopener');
+}
+
+/* ============ cliente de mostrador, cupón y documento ============ */
+
+function syncDocFields() {
+  const tipo = document.getElementById('posDocType')?.value;
+  const box = document.getElementById('posCcfFields');
+  if (box) box.hidden = tipo !== 'ccf';
+}
+
+function syncPayFields() {
+  const method = document.getElementById('posMethod')?.value;
+  const box = document.getElementById('posCardFields');
+  if (box) box.hidden = method !== 'tarjeta';
+}
+
+function pickCustomer(c) {
+  customer = c;
+  const hint = document.getElementById('posCustomerHint');
+  if (hint) {
+    hint.innerHTML = `<b>${api.esc(c.name)}</b>${c.nit ? ' · NIT ' + api.esc(c.nit) : ''}${c.phone ? ' · ' + api.esc(c.phone) : ''}
+      <button class="btn sm ghost" type="button" id="posCustomerClear" style="margin-left:.4rem">quitar</button>`;
+    document.getElementById('posCustomerClear').onclick = () => {
+      customer = null;
+      hint.textContent = 'Consumidor final';
+      document.getElementById('posCustomerSearch').value = '';
+      document.getElementById('posCustomerResults')?.remove();
+    };
+  }
+  if (c.nit) document.getElementById('posNit').value = c.nit;
+  if (c.nrc) document.getElementById('posNrc').value = c.nrc;
+  if (c.address) document.getElementById('posFiscalAddr').value = c.address;
+  if (document.getElementById('posFiscalName')) document.getElementById('posFiscalName').value = c.name;
+  if (c.default_doc && document.getElementById('posDocType')) {
+    document.getElementById('posDocType').value = c.default_doc;
+    syncDocFields();
+  }
+  document.getElementById('posCustomerResults')?.remove();
+}
+
+async function findCustomer() {
+  const input = document.getElementById('posCustomerSearch');
+  const q = (input?.value || '').trim();
+  if (!q) return api.toast('Escribe telefono, NIT, correo o nombre', 'err');
+
+  const { data, error } = await api.sb.rpc('ts_pos_customer_find', { p_q: q });
+  if (error) return api.toast(api.errMessage(error), 'err');
+  const list = data || [];
+  if (!list.length) return api.toast('No hay cliente con ese dato. Usa "Nuevo".', 'err');
+  if (list.length === 1) return pickCustomer(list[0]);
+
+  document.getElementById('posCustomerResults')?.remove();
+  const box = document.createElement('div');
+  box.id = 'posCustomerResults';
+  box.style.cssText = 'margin:.4rem 0;display:flex;flex-direction:column;gap:.3rem';
+  box.innerHTML = list.map((c) => `
+    <button type="button" class="btn sm ghost" data-pick="${c.id}" style="justify-content:flex-start;text-align:left">
+      ${api.esc(c.name)}${c.nit ? ' · ' + api.esc(c.nit) : ''}${c.phone ? ' · ' + api.esc(c.phone) : ''}
+    </button>`).join('');
+  document.getElementById('posCustomerHint').after(box);
+  box.onclick = (e) => {
+    const b = e.target.closest('[data-pick]');
+    if (!b) return;
+    pickCustomer(list.find((x) => x.id === b.dataset.pick));
+  };
+}
+
+function newCustomer() {
+  document.getElementById('posNewCustomer')?.remove();
+  const box = document.createElement('div');
+  box.id = 'posNewCustomer';
+  box.className = 'panel';
+  box.style.cssText = 'margin-top:.6rem';
+  box.innerHTML = `
+    <h3 style="margin-top:0">Cliente nuevo</h3>
+    <div class="field"><label>Nombre o razon social *</label><input id="ncName" placeholder="Ana Perez"></div>
+    <div class="row" style="gap:.4rem">
+      <div class="field" style="flex:1"><label>Telefono</label><input id="ncPhone" inputmode="tel" placeholder="7777 1234"></div>
+      <div class="field" style="flex:1"><label>Correo</label><input id="ncEmail" placeholder="ana@correo.com"></div>
+    </div>
+    <div class="row" style="gap:.4rem">
+      <div class="field" style="flex:1"><label>NIT</label><input id="ncNit" placeholder="0614-123456-101-1"></div>
+      <div class="field" style="flex:1"><label>NRC</label><input id="ncNrc" placeholder="123456-7"></div>
+    </div>
+    <div class="field"><label>Direccion</label><input id="ncAddr" placeholder="San Salvador, Col. Escalon"></div>
+    <div class="row" style="gap:.4rem">
+      <button class="btn primary sm" id="ncSave">Guardar cliente</button>
+      <button class="btn ghost sm" id="ncCancel">Cancelar</button>
+    </div>`;
+  document.getElementById('posCustomerHint').after(box);
+
+  document.getElementById('ncCancel').onclick = () => box.remove();
+  document.getElementById('ncSave').onclick = async (e) => {
+    const btn = e.currentTarget;
+    const name = document.getElementById('ncName').value.trim();
+    if (!name) return api.toast('El cliente necesita nombre', 'err');
+    const nit = document.getElementById('ncNit').value.trim();
+    if (nit && !/^\d{4}-\d{6}-\d{3}-\d{1}$/.test(nit)) {
+      return api.toast('El NIT debe verse asi: 0614-123456-101-1', 'err');
+    }
+    btn.disabled = true;
+    const { data, error } = await api.sb.rpc('ts_pos_customer_save', {
+      p: {
+        name, phone: document.getElementById('ncPhone').value.trim(),
+        email: document.getElementById('ncEmail').value.trim(), nit,
+        nrc: document.getElementById('ncNrc').value.trim(),
+        address: document.getElementById('ncAddr').value.trim(),
+        default_doc: nit ? 'ccf' : 'factura',
+      },
+    });
+    btn.disabled = false;
+    if (error) return api.toast(api.errMessage(error), 'err');
+    box.remove();
+    pickCustomer(data);
+    api.toast('Cliente guardado');
+  };
+}
+
+async function applyPromo() {
+  const code = (document.getElementById('posPromo')?.value || '').trim();
+  const hint = document.getElementById('posPromoHint');
+  if (!code) return api.toast('Escribe el codigo del cupon', 'err');
+  if (!cart.length) return api.toast('Agrega productos antes del cupon', 'err');
+
+  const items = cart.map((i) => ({ product_id: i.id, qty: i.qty, total: Number(i.price) * i.qty }));
+  const { data, error } = await api.sb.rpc('ts_promo_check', { p_code: code, p_items: items });
+  if (error) { if (hint) hint.textContent = ''; return api.toast(api.errMessage(error), 'err'); }
+  if (!data?.ok) {
+    promo = null;
+    if (hint) hint.textContent = '';
+    document.getElementById('posPromoClear').hidden = true;
+    renderCart();
+    return api.toast(data?.message || 'Ese cupon no aplica', 'err');
+  }
+
+  promo = { code: data.code, discount: Number(data.discount), label: data.message };
+  if (hint) hint.innerHTML = 'OK · <b>' + api.esc(data.name) + '</b> · ' + api.esc(data.message);
+  document.getElementById('posPromoClear').hidden = false;
+  renderCart();
+}
+
+function clearPromo() {
+  promo = null;
+  document.getElementById('posPromo').value = '';
+  document.getElementById('posPromoHint').textContent = '';
+  document.getElementById('posPromoClear').hidden = true;
+  renderCart();
+}
+
+function resetPosFields() {
+  ['posCustomerSearch', 'posNit', 'posNrc', 'posFiscalName', 'posFiscalAddr',
+   'posPromo', 'posCardAuth', 'posCardLast4'].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  const hint = document.getElementById('posCustomerHint');
+  if (hint) hint.textContent = 'Consumidor final';
+  const ph = document.getElementById('posPromoHint');
+  if (ph) ph.textContent = '';
+  const pc = document.getElementById('posPromoClear');
+  if (pc) pc.hidden = true;
+  document.getElementById('posCustomerResults')?.remove();
+  document.getElementById('posNewCustomer')?.remove();
+}
+
+/* monto en letras para el documento */
+const UNI = ['cero','uno','dos','tres','cuatro','cinco','seis','siete','ocho','nueve','diez',
+  'once','doce','trece','catorce','quince','dieciseis','diecisiete','dieciocho','diecinueve',
+  'veinte','veintiuno','veintidos','veintitres','veinticuatro','veinticinco','veintiseis',
+  'veintisiete','veintiocho','veintinueve'];
+const DEC = ['', '', '', 'treinta','cuarenta','cincuenta','sesenta','setenta','ochenta','noventa'];
+const CEN = ['', 'ciento','doscientos','trescientos','cuatrocientos','quinientos','seiscientos',
+  'setecientos','ochocientos','novecientos'];
+
+function centenas(n) {
+  if (n === 0) return '';
+  if (n === 100) return 'cien';
+  const c = Math.floor(n / 100);
+  const r = n % 100;
+  const parts = [];
+  if (c) parts.push(CEN[c]);
+  if (r) {
+    if (r < 30) parts.push(UNI[r]);
+    else {
+      const d = Math.floor(r / 10);
+      const u = r % 10;
+      parts.push(u ? DEC[d] + ' y ' + UNI[u] : DEC[d]);
+    }
+  }
+  return parts.join(' ');
+}
+
+function enteroLetras(n) {
+  if (n === 0) return 'cero';
+  if (n < 1000) return centenas(n);
+  if (n < 1000000) {
+    const miles = Math.floor(n / 1000);
+    const resto = n % 1000;
+    const m = miles === 1 ? 'mil' : enteroLetras(miles) + ' mil';
+    return resto ? m + ' ' + centenas(resto) : m;
+  }
+  const mill = Math.floor(n / 1000000);
+  const resto = n % 1000000;
+  const m = mill === 1 ? 'un millon' : enteroLetras(mill) + ' millones';
+  return resto ? m + ' ' + enteroLetras(resto) : m;
+}
+
+function numeroLetras(monto) {
+  const n = Math.floor(Number(monto) || 0);
+  const cents = Math.round(((Number(monto) || 0) - n) * 100);
+  const txt = enteroLetras(n).toUpperCase();
+  return txt + ' ' + (cents ? 'CON ' + String(cents).padStart(2, '0') + '/100' : 'CON 00/100') + ' DOLARES';
 }

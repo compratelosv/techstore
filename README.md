@@ -101,6 +101,30 @@ abrir (fondo) → vender en POS → ingresos / egresos / retiros → cerrar (arq
 - El cierre guarda el **conteo por denominación** (de $100 a 1¢) y la diferencia; queda en el historial con el nombre de quién abrió el turno.
 - El cobro exige caja abierta **en el servidor**, no solo en la pantalla: una llamada directa a `ts_confirm_payment` para un pedido POS sin turno devuelve error y el pedido sigue pendiente.
 
+## Cómo funciona el punto de venta de sala
+
+```
+escanear → cliente (opcional) → documento → cupón → forma de pago → cobrar → ticket 80 mm
+```
+
+- **Cliente de mostrador:** buscador por teléfono, NIT, correo o nombre; se puede crear ahí mismo (`ts_pos_customers`). No crea cuentas de la tienda: es un cliente de caja.
+- **Documento:** *Factura consumidor final* o *CCF*. El CCF exige **NIT válido** (formato `0614-123456-101-1`), nombre o razón social, NRC y dirección. El correlativo es propio por tipo y año (`ts_doc_series`) y se toma con bloqueo: no se repite ni se salta.
+- **Numeración y control:** `CCF-2026-00000001` con número de control `DTE-03-CCF1-000000000000001` y código de generación UUID.
+- **Aviso obligatorio:** mientras no haya facturación electrónica conectada, el ticket dice **"DOCUMENTO DE CONTROL INTERNO — NO VÁLIDO FISCALMENTE"**. El campo `fiscal_valid` está en `false`.
+- **Cupón:** se valida con `ts_promo_check` (la misma función que usa el cobro), que devuelve el **monto** del descuento; la pantalla muestra ese monto, nunca un porcentaje recalculado. Si el cupón tiene alcance por producto, el descuento se aplica solo a la base elegible.
+- **Tarjeta (datáfono manual):** se pide **número de autorización** del voucher y opcionalmente los últimos 4; quedan guardados en el pago y en el ticket. No hay integración con pasarela todavía.
+- **Ticket:** `ticket.html?d=<id>` a 80 mm con `@page size: 80mm`. Incluye subtotal, descuento, gravada, IVA, total, **total en letras** y datos del voucher. Hoy la impresión es la del navegador (simulación).
+- **Reimpresión:** el documento queda en `ts_pos_docs` y se puede volver a abrir con su id.
+
+### Lo que dice la ley (y por eso el diseño es así)
+
+- **Código Tributario, art. 110:** si después de emitir un CCF hay ajustes, devoluciones de dinero o de bienes, o se anula la operación, hay que emitir **nuevo CCF o nota de crédito/débito** que **haga referencia al documento original**. No se borra ni se "anula" el CCF.
+- **Código Tributario, art. 114:** la nota de crédito cumple los mismos requisitos formales que el CCF (datos del emisor y del adquirente, descripción de los bienes, precio unitario, cantidad y monto).
+- **Ley de Protección al Consumidor, arts. 22 y 34:** si el producto se entrega en calidad, cantidad o forma distinta a la ofrecida, o si el defecto no se corrige tras dos reparaciones, **el consumidor elige**: cumplimiento de la oferta, reducción de precio, cambio por otro producto o **devolución de lo pagado**. La devolución es un derecho, no una cortesía: por eso el sistema no puede sustituirla por un cupón.
+- **Art. 15:** la garantía debe constar por escrito con condiciones, plazo y establecimiento donde se hace efectiva.
+
+Por eso la devolución de una venta con CCF se resolverá con **nota de crédito** (`nota_credito`, serie `NC`) que referencia el documento original, y el reembolso se registra aparte en `ts_payments`.
+
 ## Cómo funciona una contingencia
 
 ```
@@ -245,6 +269,23 @@ Para conectar Wompi:
 node serve.mjs 5180     # http://localhost:5180
 python tools/make_images.py   # regenerar las imágenes del catálogo
 ```
+
+## Verificación ejecutada — POS de sala (2026-11-25)
+
+| Prueba | Resultado |
+|---|---|
+| Cliente nuevo creado en caja | `Comercial La Estrella SA de CV`, NIT y NRC guardados ✅ |
+| El CCF se activa solo al elegir cliente con NIT | select pasó a `ccf` y mostró los campos fiscales ✅ |
+| Cupón aplicado en caja | `BUENFIN15` · **−$12.00** sobre $80.00 · total **$68.00** ✅ |
+| Consistencia pantalla ↔ cobro | antes mostraba $70.40 y cobraba $68.00 ❌ → corregido, ahora ambos $68.00 ✅ |
+| Cobro con tarjeta | autorización `045123`, últimos 4 `4321` guardados en el pago y el ticket ✅ |
+| Emisión de CCF | `CCF-2026-00000001`, control `DTE-03-CCF1-000000000000001`, gravada $60.18 + IVA $7.82 = $68.00 ✅ |
+| Emisión de factura consumidor final | `FAC-2026-00000002`, mismo desglose ✅ |
+| Total en letras | `SESENTA Y OCHO CON 00/100 DOLARES` ✅ |
+| Ticket 80 mm | subtotal, descuento, gravada, IVA, total, pago y leyenda de documento interno ✅ |
+| Bloque de cobro | `sticky`: el botón Cobrar queda visible sin hacer scroll ✅ |
+
+Datos de prueba eliminados: 0 pedidos de prueba, 0 documentos, 0 clientes de caja, caja cerrada, stock restaurado.
 
 ## Verificación ejecutada — contingencias (2026-11-25)
 

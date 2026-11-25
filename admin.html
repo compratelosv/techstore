@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Panel · TechStore SV</title>
 <link rel="icon" href="assets/favicon.svg">
-<link rel="stylesheet" href="css/admin.css?v=61305244">
+<link rel="stylesheet" href="css/admin.css?v=9aec7eea">
 </head>
 <body>
 
@@ -175,22 +175,74 @@
           <div id="posLines"></div>
           <p class="small muted" id="posEmpty">Sin productos. Escanea el primero.</p>
 
-          <div class="pos-total"><span>Total</span><span id="posTotal">$0.00</span></div>
+          <h3 style="margin-top:.8rem">Cliente y documento</h3>
 
-          <div class="field">
-            <label for="posName">Cliente (opcional)</label>
-            <input id="posName" placeholder="Consumidor final">
+          <div class="row" style="gap:.4rem;align-items:flex-end">
+            <div class="field" style="flex:1;margin:0">
+              <label for="posCustomerSearch">Buscar cliente</label>
+              <input id="posCustomerSearch" placeholder="Teléfono, NIT, correo o nombre" autocomplete="off">
+            </div>
+            <button class="btn sm" id="posCustomerFind">Buscar</button>
+            <button class="btn sm ghost" id="posCustomerNew">Nuevo</button>
           </div>
-          <div class="field">
-            <label for="posMethod">Forma de pago</label>
-            <select id="posMethod">
-              <option value="efectivo">Efectivo</option>
-              <option value="tarjeta">Tarjeta (POS externo)</option>
-              <option value="transferencia">Transferencia</option>
+          <p class="small muted" id="posCustomerHint" style="margin:.4rem 0 0">Consumidor final</p>
+
+          <div class="field" style="margin-top:.6rem">
+            <label for="posDocType">Documento a emitir</label>
+            <select id="posDocType">
+              <option value="factura">Factura — consumidor final</option>
+              <option value="ccf">Comprobante de crédito fiscal (CCF)</option>
             </select>
           </div>
-          <button class="btn primary block" id="posCharge" disabled>Cobrar y generar pedido</button>
-          <button class="btn ghost block sm" id="posClear" style="margin-top:.4rem">Vaciar ticket</button>
+
+          <div id="posCcfFields" hidden>
+            <div class="row" style="gap:.4rem">
+              <div class="field" style="flex:1"><label for="posNit">NIT *</label>
+                <input id="posNit" placeholder="0614-123456-101-1" inputmode="numeric"></div>
+              <div class="field" style="flex:1"><label for="posNrc">NRC</label>
+                <input id="posNrc" placeholder="123456-7"></div>
+            </div>
+            <div class="field"><label for="posFiscalName">Nombre o razón social *</label>
+              <input id="posFiscalName" placeholder="Como aparece en el NIT"></div>
+            <div class="field"><label for="posFiscalAddr">Dirección</label>
+              <input id="posFiscalAddr" placeholder="Departamento y municipio"></div>
+          </div>
+
+          <div class="pos-paybox">
+            <div class="field">
+              <label for="posPromo">Cupón de descuento</label>
+              <div class="row" style="gap:.4rem">
+                <input id="posPromo" placeholder="Ej: BUENFIN15" style="flex:1" autocomplete="off">
+                <button class="btn sm" id="posPromoApply">Aplicar</button>
+                <button class="btn sm ghost" id="posPromoClear" hidden>Quitar</button>
+              </div>
+              <span class="small muted" id="posPromoHint"></span>
+            </div>
+
+            <div class="pos-total"><span>Total</span><span id="posTotal">$0.00</span></div>
+            <p class="small" id="posDiscountLine" hidden></p>
+
+            <div class="field">
+              <label for="posMethod">Forma de pago</label>
+              <select id="posMethod">
+                <option value="efectivo">Efectivo</option>
+                <option value="tarjeta">Tarjeta (datáfono)</option>
+                <option value="transferencia">Transferencia</option>
+              </select>
+            </div>
+
+            <div id="posCardFields" hidden>
+              <div class="row" style="gap:.4rem">
+                <div class="field" style="flex:1"><label for="posCardAuth">Autorización *</label>
+                  <input id="posCardAuth" placeholder="N.º del voucher" inputmode="numeric"></div>
+                <div class="field" style="flex:0 0 96px"><label for="posCardLast4">Últimos 4</label>
+                  <input id="posCardLast4" maxlength="4" inputmode="numeric" placeholder="1234"></div>
+              </div>
+            </div>
+
+            <button class="btn primary block" id="posCharge" disabled>Cobrar, emitir e imprimir</button>
+            <button class="btn ghost block sm" id="posClear" style="margin-top:.4rem">Vaciar ticket</button>
+          </div>
         </div>
 
         <!-- derecha: catálogo rápido -->

@@ -298,6 +298,15 @@ th.sortable[data-dir]:not([data-dir=""])::after{content:attr(data-dir);margin-le
 .theme-prev .tp-row{display:flex;gap:.3rem;align-items:center}
 .theme-prev .tp-card{flex:1;height:26px;border-radius:6px}
 .theme-prev .tp-btn{height:14px;width:44px;border-radius:4px}
+/* ---------- POS: bloque de cobro siempre visible ---------- */
+.pos-paybox{
+  position:sticky;bottom:-1px;z-index:4;margin-top:.8rem;
+  background:var(--bg-2);background-color:var(--bg-2);
+  border-top:1px solid var(--line);
+  padding:.7rem 0 .2rem;box-shadow:0 -14px 26px -20px rgba(0,0,0,.55)
+}
+.pos-paybox .pos-total{margin-top:.2rem}
+
 /* ---------- contingencias ---------- */
 .inc-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:.55rem .9rem;font-size:.84rem}
 .inc-grid span{display:block;font-size:.64rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:800;margin-bottom:.1rem}
