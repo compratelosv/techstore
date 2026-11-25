@@ -44,6 +44,7 @@ Son cuentas de sandbox con correo ya confirmado. **Las contraseñas no se guarda
 - **Configuración** (solo administrador): moneda (código, símbolo, decimales, formato regional), datos del negocio para documentos (razón social, NIT, teléfono, WhatsApp, dirección), impuesto y validez de cotizaciones, y **cuentas bancarias** donde se recibe el dinero.
 - **Clientes** (admin y operador): consolidado por cuenta con pedidos, gasto acumulado, ticket promedio, última compra y búsqueda por nombre/correo/teléfono. Ficha con historial completo, direcciones y **notas internas** del equipo.
 - **Proveedores y compras** (solo administrador, porque muestra costos): catálogo de proveedores con contacto y NIT; registro de compras **pendientes** que, al recibirlas, suman stock, dejan movimiento de inventario `entrada` y actualizan el costo del producto (base del margen).
+- **Requisiciones de compra y de servicios** (el personal solicita, **solo el CEO aprueba y paga**): documento con folio `REQ-00001` que sigue el ciclo **borrador → por aprobar → aprobada → orden de compra `OC-00001` → recibida → facturada → pagada → cerrada**, con `rechazada`/`anulada` por motivo y **sin borrado**. Cada paso lo firma quien lo ejecuta y queda en el historial. Sirve para mercancía (entra al inventario y actualiza el costo al recibir) y para servicios (mantenimiento, limpieza) **sin crear productos ficticios**. Guarda **departamento solicitante, justificación, cotizaciones comparadas, documentos y sello de aprobación**.
 - **Reparto a domicilio** (transportista): se le asigna un pedido desde Preparación; en su panel ve solo **sus** entregas **del día** (más pestañas de pendientes de días anteriores e historial) con dirección, teléfono, bultos e importe, avisa "salir a ruta" y confirma la entrega. Su cuenta no tiene acceso a pedidos ajenos, inventario, costos, ventas, clientes ni configuración.
 - **Escaneo de bultos en la entrega**: el transportista escanea con la cámara del teléfono la etiqueta de cada producto (SKU o código de barras) o la etiqueta del pedido, y el sistema lleva la cuenta `1/2`. **No puede marcar "Entregado" hasta escanear todos los bultos**, y cada lectura queda registrada con fecha y usuario. El permiso se puede apagar por usuario desde Usuarios → columna "Escaneo".
 - **Caja por turno** (admin y operador): apertura con fondo inicial, ventas en efectivo del turno, ingresos/egresos/retiros, **arqueo por denominación** al cerrar y diferencia (sobrante o faltante). Sin caja abierta el POS no puede cobrar.
@@ -98,6 +99,23 @@ abrir (fondo) → vender en POS → ingresos / egresos / retiros → cerrar (arq
 - Lo esperado en el cajón = `fondo + ventas en efectivo + ingresos − egresos − retiros`. Los pagos con tarjeta o transferencia **no** suman al efectivo.
 - El cierre guarda el **conteo por denominación** (de $100 a 1¢) y la diferencia; queda en el historial con el nombre de quién abrió el turno.
 - El cobro exige caja abierta **en el servidor**, no solo en la pantalla: una llamada directa a `ts_confirm_payment` para un pedido POS sin turno devuelve error y el pedido sigue pendiente.
+
+## Cómo funciona una requisición
+
+```
+borrador → por aprobar → aprobada → orden de compra → recibida → facturada → pagada → cerrada
+                                     (anulada o rechazada en cualquier punto, con motivo)
+```
+
+- **Quién hace qué:** cualquier miembro del personal (`admin` u `operador`) **solicita**; **solo el `admin` (el CEO) aprueba, emite la orden, factura, paga y cierra**. Las funciones `ts_req_approve`, `ts_req_issue_oc`, `ts_req_invoice`, `ts_req_pay`, `ts_req_close` y `ts_req_anular` lo verifican en la base, no solo en la pantalla: un operador que llame por API recibe *"Solo el CEO puede aprobar requisiciones"*.
+- **Visibilidad:** cada quien ve **sus** requisiciones; el CEO ve todas. La política RLS lo aplica en la consulta, no en el navegador.
+- **Aprobación inalterable:** al aprobar se guarda usuario, fecha/hora y un **hash** del folio + monto + solicitante (`approval_hash`), que se imprime al pie del documento. Si el monto cambia después hay que volver a aprobar.
+- **Producto vs servicio:** si es `producto` y las partidas están ligadas al catálogo, la recepción crea la compra (`COM-00002`), **suma stock**, deja movimiento `entrada` y actualiza el **costo** en `ts_product_costs`. Si es `servicio` (mantenimiento, limpieza), no toca inventario ni inventa productos.
+- **Impuestos:** IVA y **retención de renta** se leen de `ts_settings.taxes` (`{iva, retention_services, apply_retention}`). La retención solo se aplica a servicios. Al facturar se pueden ajustar a lo que diga la factura física.
+- **Pago y caja:** si el pago es en efectivo **desde la caja**, se inserta un `egreso` en `ts_cash_movements` del turno abierto para que el arqueo cuadre; si no hay caja abierta el sistema lo dice y no registra nada. También admite transferencia, tarjeta o cheque con referencia.
+- **Documentos:** bucket **privado** `ts-documentos` (`req/<folio>/…`), PDF o imagen hasta 10 MB. La base guarda tipo (`cotizacion`, `factura`, `remision`, `entrega`, `comprobante`, `otro`), nombre y quién subió; se abren con **enlace firmado** de 5 minutos. Nunca son públicos.
+- **Documento imprimible:** `requisicion.html?t=<id>` con datos del negocio, partidas, totales, cotizaciones comparadas, firmas de quien solicitó y quien aprobó, y el sello. Botón *Imprimir / PDF*.
+- **Tablas:** `ts_requisitions`, `ts_requisition_items`, `ts_requisition_quotes`, `ts_requisition_docs`, `ts_requisition_events`, `ts_departments`.
 
 ## Flujo de reparto
 

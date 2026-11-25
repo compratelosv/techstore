@@ -286,6 +286,27 @@ th.sortable[data-dir]:not([data-dir=""])::after{content:attr(data-dir);margin-le
 .theme-prev .tp-row{display:flex;gap:.3rem;align-items:center}
 .theme-prev .tp-card{flex:1;height:26px;border-radius:6px}
 .theme-prev .tp-btn{height:14px;width:44px;border-radius:4px}
+/* ---------- requisiciones ---------- */
+.badge.rq-borrador{background:var(--bg-3);color:var(--muted)}
+.badge.rq-solicitada{background:rgba(245,158,11,.16);color:var(--warn)}
+.badge.rq-aprobada{background:rgba(56,189,248,.16);color:var(--info)}
+.badge.rq-orden_emitida{background:rgba(99,102,241,.18);color:#a5b4fc}
+.badge.rq-recibida{background:rgba(16,185,129,.16);color:var(--ok)}
+.badge.rq-facturada{background:rgba(245,158,11,.2);color:var(--warn)}
+.badge.rq-pagada{background:rgba(16,185,129,.22);color:var(--ok)}
+.badge.rq-cerrada{background:rgba(148,163,184,.18);color:var(--muted)}
+.badge.rq-anulada,.badge.rq-rechazada{background:rgba(239,68,68,.16);color:var(--bad)}
+
+.rq-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:.6rem .9rem;font-size:.84rem}
+.rq-grid span{display:block;font-size:.66rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:800;margin-bottom:.1rem}
+.rq-totals{margin-top:.7rem;border-top:1px solid var(--line);padding-top:.6rem;display:flex;flex-direction:column;gap:.25rem}
+.rq-totals > div{display:flex;justify-content:space-between;font-size:.86rem}
+.rq-totals .rq-grand{font-size:1.04rem;font-weight:800;border-top:1px dashed var(--line);padding-top:.35rem;margin-top:.2rem}
+.rq-doc{display:flex;align-items:center;gap:.5rem;padding:.4rem 0;border-bottom:1px solid var(--line);font-size:.82rem}
+.rq-doc span{font-size:.64rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);width:112px;flex:0 0 auto}
+.rq-doc b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rq-item{border:1px solid var(--line);border-radius:10px;padding:.55rem .6rem;margin-bottom:.5rem;background:var(--bg-3)}
+
 /* ---------- marketing ---------- */
 .net-card{border:1px solid var(--line);border-radius:12px;padding:.7rem .8rem;margin-bottom:.6rem;background:var(--bg-2)}
 .net-head{display:flex;align-items:center;gap:.6rem}

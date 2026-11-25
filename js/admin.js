@@ -3,6 +3,7 @@ import { sb, money, esc, toast, fmtDate, errMessage, STATUS_LABEL, getUser, load
 import { initPos, scanOnce, scanStream, stopScan, scanFeedback } from './pos.js?v=926d48b5';
 import { Scanner } from './scanner.js?v=90ef2e67';
 import { initMarketing, loadMarketing, renderMarketing, renderEditorial, renderContent, renderMetrics } from './marketing.js?v=7ad6e894';
+import { initRequisitions, loadRequisitions, renderRequisitions } from './requisitions.js?v=0fdbcf48';
 
 /* ---------------- estado ---------------- */
 const state = {
@@ -113,6 +114,7 @@ async function boot() {
   $('#navPromos').classList.toggle('hidden', !isAdmin);
   $('#navSuppliers').classList.toggle('hidden', !isAdmin);
   $('#navSettings').classList.toggle('hidden', !isAdmin);
+  $('#navInventory')?.classList.toggle('hidden', !isAdmin);
   $('#navDeliveries').classList.toggle('hidden', !isCourier);
   const growth = $('#navGrowth');
   if (growth) growth.hidden = !canMarketing;
@@ -147,6 +149,7 @@ async function boot() {
   await refreshAll();
   initPos({ sb, money, esc, toast, errMessage });
   initMarketing();
+  initRequisitions(isAdmin);
   const target = viewFromHash();
   if (target === 'deliveries' || (target === 'users' && !isAdmin)) {
     setView('orders');
@@ -215,6 +218,7 @@ const TITLES = {
   users: ['Usuarios', 'Quién entra al panel y con qué rol'],
   settings: ['Configuración', 'Negocio, apariencia, cobros y redes sociales'],
   inventory: ['Inventario', 'Stock, precios y movimientos'],
+  requisitions: ['Requisiciones', 'Compras y servicios: solicitud, aprobación del CEO, recepción y pago'],
   marketing: ['Marketing', 'Redes del negocio, audiencia y estado de conexión'],
   editorial: ['Calendario editorial', 'Qué se publica cada día y en qué estado está'],
   content: ['Contenido', 'Piezas, borradores y publicaciones'],
@@ -237,6 +241,7 @@ const HASH_TO_VIEW = {
   usuarios: 'users', users: 'users',
   configuracion: 'settings', settings: 'settings',
   inventario: 'inventory', inventory: 'inventory',
+  requisiciones: 'requisitions', requisitions: 'requisitions',
   marketing: 'marketing', editorial: 'editorial',
   contenido: 'content', content: 'content',
   metricas: 'metrics', metrics: 'metrics', metricas_marketing: 'metrics',
@@ -247,6 +252,7 @@ const VIEW_TO_HASH = {
   deliveries: 'entregas',
   customers: 'clientes', suppliers: 'proveedores',
   sales: 'ventas', users: 'usuarios', settings: 'configuracion', inventory: 'inventario',
+  requisitions: 'requisiciones',
   marketing: 'marketing', editorial: 'editorial', content: 'contenido', metrics: 'metricas',
 };
 
@@ -264,9 +270,15 @@ function setView(view, { syncHash = true } = {}) {
       syncHash = true;
     }
   }
+  // Solo el CEO entra a inventario, promos, proveedores, usuarios y configuración,
+  // aunque escriba el hash a mano.
+  if (state.profile?.role !== 'admin' && ['inventory', 'promos', 'suppliers', 'users', 'settings'].includes(view)) {
+    view = 'orders';
+    syncHash = true;
+  }
   state.view = view;
   $$('#sideNav button').forEach((b) => b.classList.toggle('active', b.dataset.view === view));
-  ['orders', 'fulfillment', 'deliveries', 'pos', 'cash', 'agenda', 'promos', 'quotes', 'customers', 'suppliers', 'sales', 'users', 'settings', 'inventory', 'marketing', 'editorial', 'content', 'metrics'].forEach((v) => {
+  ['orders', 'fulfillment', 'deliveries', 'pos', 'cash', 'agenda', 'promos', 'quotes', 'customers', 'suppliers', 'sales', 'users', 'settings', 'inventory', 'marketing', 'editorial', 'content', 'metrics', 'requisitions'].forEach((v) => {
     const sec = $(`#view-${v}`);
     if (sec) sec.classList.toggle('hidden', v !== view);
   });
@@ -280,6 +292,7 @@ function setView(view, { syncHash = true } = {}) {
   if (view === 'fulfillment') renderKanban();
   if (view === 'deliveries') renderDeliveries();
   if (view === 'inventory') renderInventory();
+  if (view === 'requisitions') loadRequisitions().then(() => renderRequisitions(state.profile?.role === 'admin'));
   if (view === 'pos') renderPos();
   if (view === 'cash') renderCash();
   if (view === 'agenda') { renderCalendar(); }
