@@ -1,5 +1,5 @@
 /* admin.js — shell del panel: pedidos, preparación e inventario */
-import { sb, money, esc, toast, fmtDate, errMessage, STATUS_LABEL, getUser, loadCurrency, loadTheme, applyTheme, getCurrency } from './core.js?v=ff7704d8';
+import { sb, money, esc, toast, fmtDate, errMessage, STATUS_LABEL, getUser, loadCurrency, loadTheme, applyTheme, getCurrency } from './core.js?v=454f869e';
 import { initPos, scanOnce, scanStream, stopScan, scanFeedback } from './pos.js?v=926d48b5';
 import { Scanner } from './scanner.js?v=90ef2e67';
 
@@ -180,7 +180,7 @@ const TITLES = {
   customers: ['Clientes', 'Quién compra, cuánto gasta y qué notas dejó el equipo'],
   suppliers: ['Proveedores', 'A quién le compras y qué mercancía viene en camino'],
   users: ['Usuarios', 'Quién entra al panel y con qué rol'],
-  settings: ['Configuración', 'Negocio, apariencia, cobros e integraciones'],
+  settings: ['Configuración', 'Negocio, apariencia, cobros y redes sociales'],
   inventory: ['Inventario', 'Stock, precios y movimientos'],
 };
 

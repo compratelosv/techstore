@@ -1,5 +1,5 @@
 /* product.js — ficha de producto */
-import { sb, money, esc, toast, mountHeader, errMessage } from './core.js?v=ff7704d8';
+import { sb, money, esc, toast, mountHeader, errMessage } from './core.js?v=454f869e';
 import { addItem, cartCount } from './cart.js?v=213c08d9';
 
 const view = document.getElementById('productView');

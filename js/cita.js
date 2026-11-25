@@ -1,5 +1,5 @@
 /* cita.js — confirmar o reagendar la entrega desde el enlace de WhatsApp */
-import { sb, esc, toast, mountHeader, errMessage, fmtDate, STATUS_LABEL } from './core.js?v=ff7704d8';
+import { sb, esc, toast, mountHeader, errMessage, fmtDate, STATUS_LABEL } from './core.js?v=454f869e';
 
 const token = new URLSearchParams(location.search).get('t');
 let order = null;

@@ -359,7 +359,8 @@
       <nav class="tabs" id="settingsTabs" style="margin-bottom:1rem">
         <button class="tab-btn active" data-stab="negocio">Negocio</button>
         <button class="tab-btn" data-stab="apariencia">Apariencia</button>
-        <button class="tab-btn" data-stab="cobros">Cobros e integraciones</button>
+        <button class="tab-btn" data-stab="cobros">Cobros</button>
+        <button class="tab-btn" data-stab="redes">Redes y APIs</button>
       </nav>
 
       <div data-stab-panel="negocio">
@@ -519,7 +520,6 @@
       </div>
 
       <div data-stab-panel="cobros" class="hidden">
-        <div class="grid-2">
         <div class="panel">
           <div class="row" style="justify-content:space-between;margin-bottom:.6rem">
             <h3 style="margin:0">Cuentas bancarias</h3>
@@ -528,6 +528,9 @@
           <p class="small muted">Donde recibes el dinero de las ventas.</p>
           <div id="bankList"></div>
         </div>
+      </div>
+
+      <div data-stab-panel="redes" class="hidden">
       <div class="panel">
         <h3 style="margin-top:0">Redes sociales y APIs</h3>
         <p class="small muted" style="margin-top:0">
@@ -540,7 +543,6 @@
           <span class="small muted" id="socialMsg"></span>
         </div>
       </div>
-        </div>
       </div>
     </section>
 
@@ -682,6 +684,6 @@
 <script src="vendor/zxing-library.min.js"></script>
 <script src="vendor/zxing-browser.min.js"></script>
 <script src="vendor/jsbarcode.min.js"></script>
-<script type="module" src="js/admin.js?v=6f9a7a0b"></script>
+<script type="module" src="js/admin.js?v=4aab414c"></script>
 </body>
 </html>

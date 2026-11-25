@@ -178,6 +178,16 @@ section.block{padding:2.5rem 0}
 
 /* ---------- utilidades ---------- */
 .empty{padding:3rem 1rem;text-align:center;color:var(--ink-3)}
+
+/* ---------- redes sociales (pie de la tienda) ---------- */
+.social-links{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;margin-top:.7rem}
+.social-link{
+  display:inline-flex;align-items:center;gap:.35rem;text-decoration:none;
+  border:1px solid var(--line);background:var(--card);color:var(--ink-2);
+  padding:.35rem .7rem;border-radius:999px;font-size:.78rem;font-weight:600;transition:.15s
+}
+.social-link:hover{color:var(--accent);border-color:var(--accent)}
+
 .toast{
   position:fixed;left:50%;bottom:24px;transform:translate(-50%,20px);opacity:0;pointer-events:none;
   background:var(--ink);color:var(--bg);padding:.7rem 1.1rem;border-radius:11px;font-size:.88rem;font-weight:600;

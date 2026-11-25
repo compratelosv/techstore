@@ -52,6 +52,43 @@ export function applyTheme(mode) {
   return mode;
 }
 
+/* ---------- redes sociales en la tienda ---------- */
+const SOCIAL_META = {
+  instagram: { label: 'Instagram', icon: '📷' },
+  facebook: { label: 'Facebook', icon: '📘' },
+  tiktok: { label: 'TikTok', icon: '🎵' },
+  whatsapp: { label: 'WhatsApp', icon: '💬' },
+};
+
+/** Solo acepta enlaces http(s): evita javascript: u otros esquemas. */
+function safeUrl(u) {
+  try {
+    const parsed = new URL(String(u), location.origin);
+    return /^https?:$/.test(parsed.protocol) ? parsed.href : '';
+  } catch { return ''; }
+}
+
+/** Pinta en el pie los enlaces sociales marcados como visibles. */
+export async function mountSocial() {
+  const host = document.querySelector('[data-social]') || document.querySelector('footer');
+  if (!host || host.querySelector('.social-links')) return;
+  try {
+    const { data } = await sb.from('ts_settings').select('value').eq('key', 'social').maybeSingle();
+    const social = data?.value || {};
+    const links = Object.entries(social)
+      .map(([key, v]) => ({ key, url: safeUrl(v?.url), on: !!v?.enabled, handle: v?.handle || '' }))
+      .filter((r) => r.on && r.url)
+      .map((r) => `<a class="social-link" href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">
+        <span aria-hidden="true">${SOCIAL_META[r.key]?.icon || '↗'}</span> ${esc(r.handle || SOCIAL_META[r.key]?.label || r.key)}
+      </a>`);
+    if (!links.length) return;
+    const box = document.createElement('div');
+    box.className = 'social-links';
+    box.innerHTML = `<span class="muted small">Síguenos:</span> ${links.join('')}`;
+    host.appendChild(box);
+  } catch { /* sin redes configuradas: no se muestra nada */ }
+}
+
 export const money = (v) => {
   if (v === null || v === undefined || v === '') return '—';
   const n = Number(v);
@@ -133,6 +170,7 @@ export async function mountHeader({ active = '' } = {}) {
   const user = await getUser();
   await loadCurrency();
   await loadTheme();
+  mountSocial();
   const business = await loadBusinessName();
   const count = Number(localStorage.getItem('ts.cart.count') || 0);
 

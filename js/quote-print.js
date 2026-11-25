@@ -1,5 +1,5 @@
 /* quote-print.js — cotización imprimible (para enviar al cliente) */
-import { sb, money, esc, toast, errMessage, getUser, fmtDate, loadCurrency } from './core.js?v=ff7704d8';
+import { sb, money, esc, toast, errMessage, getUser, fmtDate, loadCurrency } from './core.js?v=454f869e';
 
 const host = document.getElementById('docHost');
 const id = new URLSearchParams(location.search).get('id');
