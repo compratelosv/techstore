@@ -27,6 +27,10 @@ const state = {
   cash: null,
   promos: [],
   agenda: [],
+  calDate: null,
+  calMode: 'month',
+  calEvents: [],
+  calSlots: [],
 };
 
 const $ = (s) => document.querySelector(s);
@@ -167,7 +171,7 @@ const TITLES = {
   fulfillment: ['Preparación', 'Lo que hay que embalar y entregar, por etapa'],
   pos: ['Punto de venta', 'Venta presencial: descuenta inventario al cobrar'],
   cash: ['Caja', 'Turno abierto, arqueo y diferencia'],
-  agenda: ['Citas', 'Quién viene hoy a recoger, a qué hora y en qué punto'],
+  agenda: ['Calendario de entregas', 'Tus días de reparto, confirmaciones y plan de ruta'],
   promos: ['Promociones', 'Cupones, descuentos por temporada y cupón de bienvenida'],
   sales: ['Ventas', 'Ingresos, ticket promedio, margen y productos más vendidos'],
   quotes: ['Cotizaciones', 'Propuestas de precio para clientes, listas para enviar'],
@@ -227,7 +231,7 @@ function setView(view, { syncHash = true } = {}) {
   if (view === 'inventory') renderInventory();
   if (view === 'pos') renderPos();
   if (view === 'cash') renderCash();
-  if (view === 'agenda') renderAgenda();
+  if (view === 'agenda') { renderCalendar(); }
   if (view === 'promos') renderPromos();
   if (view === 'sales') renderSales();
   if (view === 'quotes') renderQuotes();
@@ -2036,6 +2040,233 @@ function openPromoForm() {
     renderPromos();
   };
 }
+
+/* ---------------- calendario de entregas ---------------- */
+const DOW = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+const MONTHS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+
+const isoDate = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const parseISO = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d, 12); };
+const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+
+function calendarRange() {
+  const base = state.calDate;
+  if (state.calMode === 'week') {
+    const offset = (base.getDay() + 6) % 7;
+    const from = addDays(base, -offset);
+    return { from, to: addDays(from, 6) };
+  }
+  const first = new Date(base.getFullYear(), base.getMonth(), 1, 12);
+  const offset = (first.getDay() + 6) % 7;
+  const from = addDays(first, -offset);
+  return { from, to: addDays(from, 41) };
+}
+
+async function renderCalendar() {
+  if (!state.calDate) state.calDate = new Date();
+  const { from, to } = calendarRange();
+  const f = isoDate(from);
+  const t = isoDate(to);
+
+  const [{ data: events, error }, { data: slots }] = await Promise.all([
+    sb.rpc('ts_calendar', { p_from: f, p_to: t }),
+    sb.rpc('ts_calendar_slots', { p_from: f, p_to: t }),
+  ]);
+  if (error) return toast(errMessage(error), 'err');
+
+  state.calEvents = events || [];
+  state.calSlots = slots || [];
+
+  const title = state.calMode === 'week'
+    ? `${from.getDate()} – ${to.getDate()} de ${MONTHS[to.getMonth()]} ${to.getFullYear()}`
+    : `${MONTHS[state.calDate.getMonth()]} ${state.calDate.getFullYear()}`;
+  $('#calTitle').textContent = title;
+
+  const todayISO = isoDate(new Date());
+  const byDay = {};
+  state.calEvents.forEach((e) => { (byDay[e.date] = byDay[e.date] || []).push(e); });
+  const freeByDay = {};
+  state.calSlots.forEach((s) => {
+    if (s.free > 0) (freeByDay[s.date] = freeByDay[s.date] || []).push(s);
+  });
+
+  const cells = [];
+  cells.push(...DOW.map((d) => `<div class="cal-dow">${d}</div>`));
+
+  const total = state.calMode === 'week' ? 7 : 42;
+  for (let i = 0; i < total; i++) {
+    const d = addDays(from, i);
+    const iso = isoDate(d);
+    const dow = d.getDay();
+    const isDelivery = dow === 3 || dow === 6;
+    const outMonth = state.calMode === 'month' && d.getMonth() !== state.calDate.getMonth();
+    const evs = byDay[iso] || [];
+    const free = freeByDay[iso] || [];
+
+    const chips = evs.map((e) => {
+      const cls = e.status === 'no_show' ? 'bad' : e.confirmed ? 'ok' : 'warn';
+      return `<div class="cal-chip ${cls}" data-ev="${e.order_id}" title="${esc(e.code)} · ${esc(e.customer)} · ${esc(e.point)}">
+        ${e.start} ${esc(e.point.split(' ')[0])} · ${esc(e.customer || '')}</div>`;
+    }).join('');
+
+    const freeChips = state.calMode === 'week'
+      ? free.slice(0, 4).map((s) => `<div class="cal-chip free">libre ${s.start} · ${esc(s.point.split(' ')[0])}</div>`).join('')
+      : '';
+
+    cells.push(`<div class="cal-cell ${outMonth ? 'off' : ''} ${iso === todayISO ? 'today' : ''} ${isDelivery ? 'delivery-day' : ''}" data-day="${iso}">
+      <div class="cal-num">${d.getDate()}</div>
+      ${chips}${freeChips}
+    </div>`);
+  }
+
+  $('#calGrid').className = `cal-grid ${state.calMode === 'week' ? 'cal-week' : ''}`;
+  $('#calGrid').innerHTML = cells.join('');
+
+  const sel = isoDate(state.calDate);
+  $('#calPlanDate').textContent = `${parseISO(sel).toLocaleDateString('es-SV', { weekday: 'long', day: 'numeric', month: 'long' })}`;
+  await renderPlan(sel);
+}
+
+async function renderPlan(dayISO) {
+  const { data, error } = await sb.rpc('ts_delivery_plan', { p_date: dayISO });
+  if (error) return toast(errMessage(error), 'err');
+
+  const journeys = data || [];
+  if (!journeys.length) {
+    $('#calPlan').innerHTML = '<p class="small muted">Sin entregas programadas ese día.</p>';
+    return;
+  }
+
+  $('#calPlan').innerHTML = journeys.map((j) => {
+    const ir = j.decision === 'ir';
+    const bloque = j.bloque === 'manana' ? 'Mañana' : 'Tarde';
+    const route = (j.route || []).map((r) => r.name.split(' ')[0]).join(' → ');
+    const stops = (j.stops || []).map((s) => `<div class="cal-stop">
+        <b>${esc(s.start)}</b>
+        <span class="${s.confirmed ? '' : 'muted'}">${s.confirmed ? '✓' : '·'} ${esc(s.code)} · ${esc(s.customer || '')}</span>
+        <span class="muted" style="margin-left:auto">${esc(s.point || '')}</span>
+      </div>`).join('');
+
+    return `<div class="cal-verdict ${ir ? 'ir' : 'no_ir'}">
+      <b>${bloque}</b>${route ? ` · Ruta: ${esc(route)}` : ''} — ${ir
+        ? `Sí hay entrega: ${j.confirmed} de ${j.total} confirmaron${route.includes('→') ? `, te desplazás a ${(j.route || []).length} puntos` : ''}.`
+        : `No vayas: nadie confirmó (${j.total} cita${j.total === 1 ? '' : 's'}).`}
+    </div>
+    <div style="margin-bottom:.7rem">${stops}</div>`;
+  }).join('');
+}
+
+/* enlaces a Google Calendar y .ics */
+function googleUrl(ev) {
+  const d = ev.date.replace(/-/g, '');
+  const start = `${d}T${ev.start.replace(':', '')}00`;
+  const end = `${d}T${ev.end.replace(':', '')}00`;
+  const p = new URLSearchParams({
+    action: 'TEMPLATE',
+    text: `Entrega ${ev.code} · ${ev.customer || ''}`,
+    dates: `${start}/${end}`,
+    ctz: 'America/El_Salvador',
+    location: ev.point || '',
+    details: `${ev.total ? 'Monto: $' + ev.total + '\n' : ''}Estado: ${STATUS_LABEL[ev.status] || ev.status}\nConfirmó: ${ev.confirmed ? 'sí' : 'no'}\nWhatsApp: ${ev.phone || '—'}\nPanel: https://compratelosv.github.io/techstore/admin.html#citas`,
+  });
+  return `https://calendar.google.com/calendar/render?${p.toString()}`;
+}
+
+function downloadIcs() {
+  const evs = state.calEvents || [];
+  if (!evs.length) return toast('No hay entregas en este rango', 'err');
+  const pad = (n) => String(n).padStart(2, '0');
+  const stamp = new Date().toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+  const body = evs.map((e) => {
+    const d = e.date.replace(/-/g, '');
+    return [
+      'BEGIN:VEVENT',
+      `UID:${e.order_id}@techstore`,
+      `DTSTAMP:${stamp}`,
+      `DTSTART;TZID=America/El_Salvador:${d}T${e.start.replace(':', '')}00`,
+      `DTEND;TZID=America/El_Salvador:${d}T${e.end.replace(':', '')}00`,
+      `SUMMARY:Entrega ${e.code} - ${(e.customer || '').replace(/[,;]/g, ' ')}`,
+      `LOCATION:${(e.point || '').replace(/[,;]/g, ' ')}`,
+      `DESCRIPTION:${STATUS_LABEL[e.status] || e.status} | Confirmado: ${e.confirmed ? 'si' : 'no'} | ${e.total || ''}`,
+      'END:VEVENT',
+    ].join('\r\n');
+  }).join('\r\n');
+
+  const ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//TechStore SV//Entregas//ES', 'CALSCALE:GREGORIAN', body, 'END:VCALENDAR'].join('\r\n');
+  const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'entregas-techstore.ics';
+  a.click();
+  URL.revokeObjectURL(a.href);
+  toast(`${evs.length} entrega(s) exportadas`);
+}
+
+$('#calPrev').addEventListener('click', () => {
+  state.calDate = state.calMode === 'week' ? addDays(state.calDate, -7)
+    : new Date(state.calDate.getFullYear(), state.calDate.getMonth() - 1, 1, 12);
+  renderCalendar();
+});
+$('#calNext').addEventListener('click', () => {
+  state.calDate = state.calMode === 'week' ? addDays(state.calDate, 7)
+    : new Date(state.calDate.getFullYear(), state.calDate.getMonth() + 1, 1, 12);
+  renderCalendar();
+});
+$('#calToday').addEventListener('click', () => { state.calDate = new Date(); renderCalendar(); });
+
+$('#calMode').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-calmode]');
+  if (!b) return;
+  state.calMode = b.dataset.calmode;
+  $$('#calMode .tab-btn').forEach((x) => x.classList.toggle('active', x === b));
+  renderCalendar();
+});
+
+$('#calIcs').addEventListener('click', downloadIcs);
+
+$('#calCheck').addEventListener('click', async (e) => {
+  const btn = e.currentTarget;
+  btn.disabled = true;
+  const day = isoDate(state.calDate);
+  const { data, error } = await sb.rpc('ts_day_check', { p_date: day });
+  btn.disabled = false;
+  if (error) return toast(errMessage(error), 'err');
+  toast(`Revisión del ${day}: ${data.avisos} aviso(s) a clientes sin confirmar`);
+  renderCalendar();
+});
+
+$('#calGrid').addEventListener('click', (e) => {
+  const chip = e.target.closest('[data-ev]');
+  if (chip) {
+    const ev = (state.calEvents || []).find((x) => x.order_id === chip.dataset.ev);
+    if (ev) {
+      openDrawer({
+        title: `${ev.code} · ${ev.customer || ''}`,
+        subtitle: `${ev.date} · ${ev.start}–${ev.end} · ${ev.point}`,
+        body: `<div class="panel">
+          <p class="small" style="line-height:1.9;margin:0">
+            Estado: <b>${STATUS_LABEL[ev.status] || ev.status}</b><br>
+            Confirmó: <b>${ev.confirmed ? 'sí' : 'no'}</b><br>
+            WhatsApp: <b>${esc(ev.phone || '—')}</b><br>
+            Monto: <b>${money(ev.total)}</b>${ev.no_show_count ? `<br>Inasistencias: <b>${ev.no_show_count}</b>` : ''}
+          </p>
+        </div>`,
+        foot: `<a class="btn primary" target="_blank" rel="noopener" href="${googleUrl(ev)}">Añadir a Google Calendar</a>
+               <a class="btn" href="cita.html?t=${ev.token}" target="_blank" rel="noopener">Ver cita del cliente</a>
+               <button class="btn ghost" id="evClose">Cerrar</button>`,
+      });
+      $('#evClose').onclick = closeDrawer;
+    }
+    return;
+  }
+  const cell = e.target.closest('[data-day]');
+  if (cell) {
+    state.calDate = parseISO(cell.dataset.day);
+    $('#agDate').value = cell.dataset.day;
+    renderCalendar();
+    renderAgenda();
+  }
+});
 
 /* ---------------- agenda de citas ---------------- */
 async function renderAgenda() {

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Panel · TechStore SV</title>
 <link rel="icon" href="assets/favicon.svg">
-<link rel="stylesheet" href="css/admin.css?v=edc119cc">
+<link rel="stylesheet" href="css/admin.css?v=d0f766d0">
 </head>
 <body>
 
@@ -58,7 +58,7 @@
         <button data-view="deliveries" id="navDeliveries">🛵 Mis entregas</button>
         <button data-view="pos">🛒 Punto de venta</button>
         <button data-view="cash">💵 Caja</button>
-        <button data-view="agenda">📅 Citas</button>
+        <button data-view="agenda">📆 Calendario</button>
         <button data-view="quotes">🧾 Cotizaciones</button>
         <button data-view="customers">👤 Clientes</button>
       </div>
@@ -543,15 +543,47 @@
     <section id="view-agenda" class="hidden">
       <div class="panel" style="margin-bottom:1rem">
         <div class="row wrap" style="justify-content:space-between;gap:.6rem">
+          <div class="row" style="gap:.4rem;align-items:center">
+            <button class="btn sm" id="calPrev">‹</button>
+            <b id="calTitle" style="min-width:190px;text-align:center">—</b>
+            <button class="btn sm" id="calNext">›</button>
+            <button class="btn sm ghost" id="calToday">Hoy</button>
+          </div>
+          <div class="row wrap" style="gap:.4rem">
+            <div class="tabs" id="calMode">
+              <button class="tab-btn active" data-calmode="month">Mes</button>
+              <button class="tab-btn" data-calmode="week">Semana</button>
+            </div>
+            <button class="btn sm" id="calIcs">⬇ Exportar .ics</button>
+            <button class="btn sm primary" id="calCheck">📣 Revisar el día</button>
+          </div>
+        </div>
+        <p class="small muted" style="margin:.6rem 0 0">
+          Entregas los <b>miércoles y sábados</b> · mañana 9:00–11:30 y tarde 14:00–17:00 ·
+          ruta: <b>Metrocentro primero</b>, luego Plaza Merliot.
+        </p>
+      </div>
+
+      <div id="calGrid" class="cal-grid"></div>
+
+      <div class="panel" style="margin-top:1rem">
+        <div class="row" style="justify-content:space-between;margin-bottom:.6rem">
+          <h3 style="margin:0">Plan del día</h3>
+          <span class="small muted" id="calPlanDate"></span>
+        </div>
+        <div id="calPlan"></div>
+      </div>
+
+      <div class="panel" style="margin-top:1rem">
+        <div class="row wrap" style="justify-content:space-between;gap:.6rem;margin-bottom:.6rem">
+          <h3 style="margin:0">Detalle por hora</h3>
           <div class="row" style="gap:.5rem;align-items:center">
             <label for="agDate" class="small muted">Día</label>
             <input type="date" id="agDate">
+            <button class="btn sm" id="agRefresh">Actualizar</button>
           </div>
-          <button class="btn sm" id="agRefresh">Actualizar</button>
         </div>
-      </div>
-      <div class="kpis" id="agKpis"></div>
-      <div class="panel">
+        <div class="kpis" id="agKpis"></div>
         <div id="agList"></div>
         <p class="small muted" id="agEmpty" hidden>No hay citas para ese día.</p>
       </div>
@@ -599,6 +631,6 @@
 <script src="vendor/zxing-library.min.js"></script>
 <script src="vendor/zxing-browser.min.js"></script>
 <script src="vendor/jsbarcode.min.js"></script>
-<script type="module" src="js/admin.js?v=5ab3e289"></script>
+<script type="module" src="js/admin.js?v=ac8c0c02"></script>
 </body>
 </html>

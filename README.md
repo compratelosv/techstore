@@ -53,6 +53,9 @@ Son cuentas de sandbox con correo ya confirmado. **Las contraseñas no se guarda
 - **Confirmación, inasistencia y reagenda**: aviso por WhatsApp a las 7:00 a.m. del día de entrega con enlace para confirmar (`cita.html?t=token`). Si no llega, el staff marca **"No se presentó"** y el cliente puede **reagendar una vez**; a la segunda inasistencia el pedido se cancela con **retención del 20%**.
 - **Términos y privacidad**: `terminos.html` y `privacidad.html`. La compra **exige aceptar** los términos (se guarda `terms_accepted_at` en el pedido) y el servidor rechaza pedidos sin aceptación.
 - **Redes sociales y APIs** (admin): Instagram, Facebook, TikTok y WhatsApp Business con enlace, usuario, interruptor de visibilidad y campos de App ID / Client Secret listos para conectar APIs.
+- **Calendario de entregas** (admin): vista de **mes y semana** estilo Google con los miércoles y sábados resaltados, chips por entrega y franjas libres. Incluye **Plan del día** (veredicto "ve / no vayas" por jornada según confirmaciones), enlace **"Añadir a Google Calendar"** por entrega y **exportación `.ics`** de todo el rango.
+- **Regla del primero que agenda**: el primer cliente que reserva una jornada (miércoles/sábado, mañana o tarde) **fija el punto** de esa jornada; a los demás solo se les ofrece ese punto, para no hacer dos desplazamientos.
+- **Ruta ordenada**: la agenda ordena las paradas con **Metrocentro primero** y **Plaza Merliot después** (por `ts_pickup_points.sort`), y avisa si hay que desplazarse a dos puntos.
 
 ## Seguridad de las credenciales de integración
 
