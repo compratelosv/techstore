@@ -1,5 +1,5 @@
 /* admin.js — shell del panel: pedidos, preparación e inventario */
-import { sb, money, esc, toast, fmtDate, errMessage, STATUS_LABEL, getUser, loadCurrency, getCurrency } from './core.js?v=18c48370';
+import { sb, money, esc, toast, fmtDate, errMessage, STATUS_LABEL, getUser, loadCurrency, getCurrency } from './core.js?v=5214a642';
 import { initPos, scanOnce } from './pos.js?v=90cba46c';
 import { Scanner } from './scanner.js?v=90ef2e67';
 
@@ -21,6 +21,8 @@ const state = {
   customers: [],
   suppliers: [],
   purchases: [],
+  couriers: [],
+  delFilter: 'activas',
 };
 
 const $ = (s) => document.querySelector(s);
@@ -54,7 +56,7 @@ async function boot() {
     .maybeSingle();
 
   if (error) toast(errMessage(error), 'err');
-  if (!profile || !['admin', 'operador'].includes(profile.role)) {
+  if (!profile || !['admin', 'operador', 'transportista'].includes(profile.role)) {
     await sb.auth.signOut();
     $('#loginWrap').classList.remove('hidden');
     toast('Esa cuenta no tiene permisos de panel.', 'err');
@@ -82,15 +84,32 @@ async function boot() {
 
   // La sección de usuarios es solo para el administrador.
   const isAdmin = profile.role === 'admin';
+  const isCourier = profile.role === 'transportista';
   $('#navUsers').classList.toggle('hidden', !isAdmin);
   $('#navSuppliers').classList.toggle('hidden', !isAdmin);
   $('#navSettings').classList.toggle('hidden', !isAdmin);
+  $('#navDeliveries').classList.toggle('hidden', !isCourier);
+
+  // El transportista solo entra a sus entregas: nada de costos, ventas ni clientes.
+  if (isCourier) {
+    $$('#sideNav button').forEach((b) => b.classList.toggle('hidden', b.dataset.view !== 'deliveries'));
+    $$('.nav-group').forEach((g) => {
+      g.hidden = g.querySelectorAll('button:not(.hidden)').length === 0;
+    });
+    await loadSettings();
+    setView('deliveries');
+    return;
+  }
 
   await loadSettings();
   await refreshAll();
   initPos({ sb, money, esc, toast, errMessage });
   const target = viewFromHash();
-  setView(target === 'users' && !isAdmin ? 'orders' : target);
+  if (target === 'deliveries' || (target === 'users' && !isAdmin)) {
+    setView('orders');
+  } else {
+    setView(target);
+  }
 }
 
 function showLogin() {
@@ -144,6 +163,7 @@ const TITLES = {
   pos: ['Punto de venta', 'Venta presencial: descuenta inventario al cobrar'],
   sales: ['Ventas', 'Ingresos, ticket promedio, margen y productos más vendidos'],
   quotes: ['Cotizaciones', 'Propuestas de precio para clientes, listas para enviar'],
+  deliveries: ['Mis entregas', 'Pedidos asignados a ti: sal a ruta y marca la entrega'],
   customers: ['Clientes', 'Quién compra, cuánto gasta y qué notas dejó el equipo'],
   suppliers: ['Proveedores', 'A quién le compras y qué mercancía viene en camino'],
   users: ['Usuarios', 'Quién entra al panel y con qué rol'],
@@ -157,6 +177,7 @@ const HASH_TO_VIEW = {
   preparacion: 'fulfillment', fulfillment: 'fulfillment',
   pos: 'pos',
   cotizaciones: 'quotes', quotes: 'quotes',
+  entregas: 'deliveries', deliveries: 'deliveries',
   clientes: 'customers', customers: 'customers',
   proveedores: 'suppliers', suppliers: 'suppliers',
   ventas: 'sales', sales: 'sales',
@@ -166,6 +187,7 @@ const HASH_TO_VIEW = {
 };
 const VIEW_TO_HASH = {
   orders: 'pedidos', fulfillment: 'preparacion', pos: 'pos', quotes: 'cotizaciones',
+  deliveries: 'entregas',
   customers: 'clientes', suppliers: 'proveedores',
   sales: 'ventas', users: 'usuarios', settings: 'configuracion', inventory: 'inventario',
 };
@@ -178,7 +200,7 @@ function viewFromHash() {
 function setView(view, { syncHash = true } = {}) {
   state.view = view;
   $$('#sideNav button').forEach((b) => b.classList.toggle('active', b.dataset.view === view));
-  ['orders', 'fulfillment', 'pos', 'quotes', 'customers', 'suppliers', 'sales', 'users', 'settings', 'inventory'].forEach((v) => {
+  ['orders', 'fulfillment', 'deliveries', 'pos', 'quotes', 'customers', 'suppliers', 'sales', 'users', 'settings', 'inventory'].forEach((v) => {
     $(`#view-${v}`).classList.toggle('hidden', v !== view);
   });
   $('#viewTitle').textContent = TITLES[view][0];
@@ -189,6 +211,7 @@ function setView(view, { syncHash = true } = {}) {
   closeMobileMenu();
   if (view === 'orders') renderOrders();
   if (view === 'fulfillment') renderKanban();
+  if (view === 'deliveries') renderDeliveries();
   if (view === 'inventory') renderInventory();
   if (view === 'pos') renderPos();
   if (view === 'sales') renderSales();
@@ -203,6 +226,7 @@ window.addEventListener('hashchange', () => setView(viewFromHash(), { syncHash: 
 
 async function refreshAll() {
   await Promise.all([loadOrders(), loadProducts(), loadCategories()]);
+  await loadCouriers();
   renderOrders();
   renderKanban();
   renderInventory();
@@ -438,7 +462,10 @@ function renderKanban() {
     ['pagado', 'Por preparar / embalar'],
     ['en_preparacion', 'En preparación'],
     ['listo', 'Listos para entregar'],
+    ['en_ruta', 'En ruta'],
   ];
+  const courierName = (id) => (state.couriers || []).find((c) => c.id === id)?.full_name || null;
+
   $('#kanban').innerHTML = cols
     .map(([status, label]) => {
       const list = state.orders.filter((o) => o.status === status);
@@ -453,16 +480,159 @@ function renderKanban() {
               </div>
               <div class="items">${(o.ts_order_items || []).map((i) => `${esc(i.sku)} ×${i.qty}`).join(' · ')}</div>
               <div class="items">${esc(o.customer_name)} · ${fmtDate(o.created_at)}</div>
+              ${o.fulfillment === 'envio' ? `
+                <button class="btn sm ghost" style="margin-top:.4rem;width:100%" data-assign="${o.id}">
+                  🛵 ${o.courier_id ? esc(courierName(o.courier_id) || 'Asignado') : 'Asignar repartidor'}
+                </button>` : ''}
             </div>`).join('') || '<p class="small muted">Nada pendiente.</p>'}
         </div>`;
     })
     .join('');
 
   $('#kanban').onclick = (e) => {
+    const a = e.target.closest('[data-assign]');
+    if (a) {
+      e.stopPropagation();
+      openAssignCourier(a.dataset.assign);
+      return;
+    }
     const t = e.target.closest('[data-open]');
     if (t) openOrder(t.dataset.open);
   };
 }
+
+/* ---------------- repartidores ---------------- */
+async function loadCouriers() {
+  if (state.profile?.role === 'transportista') return;
+  const { data } = await sb.rpc('ts_list_couriers');
+  state.couriers = data || [];
+}
+
+function openAssignCourier(orderId) {
+  const order = state.orders.find((o) => o.id === orderId);
+  if (!order) return;
+  const activos = (state.couriers || []).filter((c) => c.active);
+  if (!activos.length) {
+    return toast('No hay transportistas activos. Créalos en Usuarios con rol Transportista.', 'err');
+  }
+
+  openDrawer({
+    title: `Asignar repartidor · ${order.code}`,
+    subtitle: `${esc(order.customer_name)} · ${esc(order.ship_city || order.fulfillment)}`,
+    body: `
+      <div class="panel">
+        <div class="field"><label for="courierPick">Transportista</label>
+          <select id="courierPick">
+            <option value="">— Sin asignar —</option>
+            ${activos.map((c) => `<option value="${c.id}" ${order.courier_id === c.id ? 'selected' : ''}>
+              ${esc(c.full_name || c.email)}${c.assigned ? ` · ${c.assigned} en curso` : ''}
+            </option>`).join('')}
+          </select>
+        </div>
+        <p class="small muted" style="margin:0">El transportista verá el pedido en su pantalla con la dirección y podrá marcarlo “en ruta” y “entregado”.</p>
+      </div>`,
+    foot: `<button class="btn primary" id="courierSave">Guardar</button>
+           <button class="btn ghost" id="courierCancel">Cancelar</button>`,
+  });
+
+  $('#courierCancel').onclick = closeDrawer;
+  $('#courierSave').onclick = async (e) => {
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    const { error } = await sb.rpc('ts_assign_courier', {
+      p_order_id: orderId,
+      p_courier_id: $('#courierPick').value || null,
+    });
+    btn.disabled = false;
+    if (error) return toast(errMessage(error), 'err');
+    toast($('#courierPick').value ? 'Repartidor asignado' : 'Repartidor removido');
+    closeDrawer();
+    await loadOrders();
+    await loadCouriers();
+    renderKanban();
+    renderOrders();
+  };
+}
+
+/* ---------------- mis entregas (transportista) ---------------- */
+async function renderDeliveries() {
+  if (state.profile?.role !== 'transportista') {
+    toast('Esta sección es del transportista', 'err');
+    return setView('orders');
+  }
+
+  const { data, error } = await sb.rpc('ts_courier_orders');
+  if (error) return toast(errMessage(error), 'err');
+
+  const all = data || [];
+  const activas = all.filter((o) => ['listo', 'en_ruta'].includes(o.status));
+  const hoy = all.filter((o) => o.status === 'entregado');
+
+  $('#delKpis').innerHTML = `
+    <div class="kpi"><span class="k-label">Por entregar</span><b>${all.filter((o) => o.status === 'listo').length}</b></div>
+    <div class="kpi"><span class="k-label">En ruta</span><b>${all.filter((o) => o.status === 'en_ruta').length}</b></div>
+    <div class="kpi"><span class="k-label">Entregadas</span><b>${hoy.length}</b></div>
+    <div class="kpi"><span class="k-label">Valor de la carga</span><b>${money(activas.reduce((n, o) => n + Number(o.total), 0))}</b></div>`;
+
+  const filtro = state.delFilter || 'activas';
+  const list = filtro === 'activas' ? activas : all;
+
+  $('#delList').innerHTML = list
+    .map((o) => {
+      const maps = [o.ship_line1, o.ship_city, o.ship_department].filter(Boolean).join(', ');
+      const tel = (o.customer_phone || '').replace(/[^\d+]/g, '');
+      return `<div class="panel" style="margin-bottom:.7rem">
+        <div class="row" style="justify-content:space-between;align-items:flex-start;gap:.6rem">
+          <div>
+            <div class="tl-name">${esc(o.code)} · ${esc(o.customer_name)}
+              <span class="badge ${o.status === 'entregado' ? 'entregado' : o.status === 'en_ruta' ? 'pagado' : 'pendiente_pago'}">${STATUS_LABEL[o.status] || o.status}</span>
+            </div>
+            <div class="tl-sub" style="margin-top:.25rem">
+              ${o.fulfillment === 'retiro' ? '🏬 Retiro en tienda' : '📍 ' + esc(maps || 'Sin dirección')}
+            </div>
+          </div>
+          <b>${money(o.total)}</b>
+        </div>
+        <div class="small muted" style="margin:.4rem 0">
+          ${(o.items || []).map((i) => `${esc(i.name)} ×${i.qty}`).join(' · ')}
+        </div>
+        ${o.ship_notes ? `<div class="small muted">Nota: ${esc(o.ship_notes)}</div>` : ''}
+        <div class="row" style="gap:.4rem;margin-top:.55rem;flex-wrap:wrap">
+          ${tel ? `<a class="btn sm ghost" href="tel:${esc(tel)}">📞 Llamar</a>` : ''}
+          ${o.status === 'listo' ? `<button class="btn sm primary" data-cr-go="${o.id}">🚀 Salir a ruta</button>` : ''}
+          ${o.status === 'listo' || o.status === 'en_ruta' ? `<button class="btn sm" data-cr-done="${o.id}">✅ Entregado</button>` : ''}
+        </div>
+      </div>`;
+    })
+    .join('');
+  $('#delEmpty').hidden = list.length > 0;
+}
+
+$('#delTabs').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-delfilter]');
+  if (!b) return;
+  state.delFilter = b.dataset.delfilter;
+  $$('#delTabs .tab-btn').forEach((x) => x.classList.toggle('active', x === b));
+  renderDeliveries();
+});
+$('#btnRefreshDel').addEventListener('click', renderDeliveries);
+
+$('#delList').addEventListener('click', async (e) => {
+  const go = e.target.closest('[data-cr-go]');
+  const done = e.target.closest('[data-cr-done]');
+  if (!go && !done) return;
+  const id = (go || done).dataset[go ? 'crGo' : 'crDone'];
+  const status = go ? 'en_ruta' : 'entregado';
+  if (done && !confirm('¿Confirmas que el pedido fue entregado al cliente?')) return;
+
+  const btn = (go || done);
+  btn.disabled = true;
+  const { error } = await sb.rpc('ts_courier_set_status', { p_order_id: id, p_status: status });
+  btn.disabled = false;
+  if (error) return toast(errMessage(error), 'err');
+  toast(status === 'en_ruta' ? 'Marcado en ruta' : 'Entrega confirmada');
+  renderDeliveries();
+});
 
 /* ---------------- inventario ---------------- */
 function renderInventory() {
@@ -1419,7 +1589,7 @@ function openPurchaseForm() {
 }
 
 /* ---------------- usuarios y roles ---------------- */
-const ROLE_LABEL = { admin: 'Administrador', operador: 'Operador', cliente: 'Cliente' };
+const ROLE_LABEL = { admin: 'Administrador', operador: 'Operador', transportista: 'Transportista', cliente: 'Cliente' };
 
 function randomPassword(len = 12) {
   const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
@@ -1479,7 +1649,7 @@ async function renderUsers() {
         <td class="small mono">${esc(u.email || '')}</td>
         <td>
           <select class="btn sm" data-role="${u.id}" ${self ? 'disabled' : ''}>
-            ${['admin', 'operador', 'cliente']
+            ${['admin', 'operador', 'transportista', 'cliente']
               .map((r) => `<option value="${r}" ${u.role === r ? 'selected' : ''}>${ROLE_LABEL[r]}</option>`)
               .join('')}
           </select>
@@ -1566,6 +1736,7 @@ $('#btnNewUser').addEventListener('click', () => {
           <label for="uRole">Rol *</label>
           <select id="uRole">
             <option value="operador" selected>Operador — ventas y logística</option>
+            <option value="transportista">Transportista — solo sus entregas</option>
             <option value="admin">Administrador — acceso total</option>
           </select>
         </div>

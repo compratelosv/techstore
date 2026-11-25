@@ -76,6 +76,7 @@ export const STATUS_LABEL = {
   pagado: 'Pagado · por preparar',
   en_preparacion: 'En preparación',
   listo: 'Listo para entrega',
+  en_ruta: 'En ruta',
   entregado: 'Entregado',
   cancelado: 'Cancelado',
   reembolsado: 'Reembolsado',

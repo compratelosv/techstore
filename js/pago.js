@@ -2,7 +2,7 @@
  * Sustituible por Wompi: el pedido se confirma con la misma RPC
  * ts_confirm_payment, que es la única que descuenta stock.
  */
-import { sb, money, esc, toast, mountHeader, requireLogin, errMessage, STATUS_LABEL } from './core.js?v=18c48370';
+import { sb, money, esc, toast, mountHeader, requireLogin, errMessage, STATUS_LABEL } from './core.js?v=5214a642';
 
 const view = document.getElementById('pagoView');
 const orderId = new URLSearchParams(location.search).get('order');

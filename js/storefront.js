@@ -1,5 +1,5 @@
 /* storefront.js — home + catálogo */
-import { sb, money, esc, toast, mountHeader, errMessage } from './core.js?v=18c48370';
+import { sb, money, esc, toast, mountHeader, errMessage } from './core.js?v=5214a642';
 import { addItem, cartCount } from './cart.js?v=213c08d9';
 
 let products = [];
