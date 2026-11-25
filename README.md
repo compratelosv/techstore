@@ -117,6 +117,14 @@ borrador → por aprobar → aprobada → orden de compra → recibida → factu
 - **Documento imprimible:** `requisicion.html?t=<id>` con datos del negocio, partidas, totales, cotizaciones comparadas, firmas de quien solicitó y quien aprobó, y el sello. Botón *Imprimir / PDF*.
 - **Tablas:** `ts_requisitions`, `ts_requisition_items`, `ts_requisition_quotes`, `ts_requisition_docs`, `ts_requisition_events`, `ts_departments`.
 
+### Solicitud de cotización por correo (`SC-AÑO-00000`)
+
+- **Qué hace:** desde el detalle de la requisición, *Solicitar cotización* arma un correo al **correo registrado del proveedor** (`ts_suppliers.email`) con las partidas **sin precios**, una nota y el plazo para responder. El correo lleva **copia al negocio** (`ts_settings.business.email`) para que quede registro de lo solicitado en el buzón.
+- **Folio trazable:** cada envío genera `SC-2026-00001` — año + consecutivo (`ts_rfq_seq`) — y aparece en **cuatro lugares**: el asunto (`[SC-…] Solicitud de cotización · REQ-00001 · TechStore`), el `Message-ID` (`<SC-…@techstore.local>`), las cabeceras `X-TS-Folio` / `X-TS-Requisicion`, y el pie del HTML con fecha/hora de El Salvador. El vínculo con la requisición (`REQ-00001`) queda en la fila y en el historial.
+- **Registro:** tabla `ts_quote_requests` con folio, requisición, proveedor, destinatario, copia, asunto, cuerpo, estado (`programada`/`enviada`/`fallida`/`respondida`/`anulada`), transporte, `provider_message_id`, intentos, `last_error` y `sent_at`. Se puede revisar y **reintentar** desde el panel.
+- **Quién envía:** la Edge Function `rfq-send`, que valida que quien llama sea personal activo (`admin`/`operador`). El navegador **no** puede marcar una solicitud como enviada: `ts_rfq_sent` y `ts_rfq_failed` solo se otorgan a `service_role`.
+- **Transporte:** Gmail API (`GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REFRESH_TOKEN`, `GMAIL_FROM`) o Resend (`RESEND_API_KEY`, `MAIL_FROM`). Sin secretos configurados la función responde `503` con el motivo, la solicitud queda en `fallida` y **no se envía nada**.
+
 ## Flujo de reparto
 
 ```
@@ -236,6 +244,22 @@ python tools/make_images.py   # regenerar las imágenes del catálogo
 | Menú del operador | sin Usuarios, Promos, Proveedores, Configuración ni Inventario ✅ |
 
 Datos de prueba eliminados después: 0 requisiciones, 0 documentos, stock y costo restaurados, usuario temporal borrado, secuencias reiniciadas.
+
+## Verificación ejecutada — solicitudes de cotización por correo (2026-11-25)
+
+| Prueba | Resultado |
+|---|---|
+| Migración `008_quote_requests` aplicada | tabla `ts_quote_requests`, enum `ts_rfq_status`, secuencia `ts_rfq_seq`, RLS y 4 funciones ✅ |
+| `ts_rfq_create` con requisición de 2 partidas | `SC-2026-00001` · asunto `[SC-2026-00001] Solicitud de cotización · REQ-00004 · TechStore SV` · HTML 3.292 caracteres · 2 eventos en el historial ✅ |
+| Destinatario tomado del proveedor | `compras@proveedor-prueba.com` (correo registrado en `ts_suppliers`) ✅ |
+| Copia al negocio | no tomada: `ts_settings.business.email` está **vacío** → hay que configurarlo ⚠️ |
+| Providencia de datos de prueba | todo el alta se hizo dentro de un bloque que terminó en excepción: **0 filas quedaron** ✅ |
+| Secuencias realineadas | `REQ-00002` y `SC-2026-00001` como próximos folios ✅ |
+| Edge Function `rfq-send` desplegada | versión 1, estado `ACTIVE`, `verify_jwt: true` ✅ |
+| Petición sin JWT | `401 UNAUTHORIZED_NO_AUTH_HEADER` (la rechaza el gateway) ✅ |
+| Petición con clave anónima (sin usuario) | `401 Sesión inválida` (la rechaza el código de la función) ✅ |
+| **Envío real de un correo** | ❌ **no verificado**: no hay transporte configurado (0 secretos de correo) |
+| Interfaz en el navegador | ⚠️ **no verificada visualmente**: el panel exige sesión y no hay credenciales de prueba |
 
 ## Verificación ejecutada (2026-11-24)
 

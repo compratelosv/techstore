@@ -3,7 +3,7 @@ import { sb, money, esc, toast, fmtDate, errMessage, STATUS_LABEL, getUser, load
 import { initPos, scanOnce, scanStream, stopScan, scanFeedback } from './pos.js?v=926d48b5';
 import { Scanner } from './scanner.js?v=90ef2e67';
 import { initMarketing, loadMarketing, renderMarketing, renderEditorial, renderContent, renderMetrics } from './marketing.js?v=7ad6e894';
-import { initRequisitions, loadRequisitions, renderRequisitions } from './requisitions.js?v=0fdbcf48';
+import { initRequisitions, loadRequisitions, renderRequisitions } from './requisitions.js?v=8c1d4a2f';
 
 /* ---------------- estado ---------------- */
 const state = {

@@ -25,10 +25,19 @@ const PAY_METHODS = [
 ];
 
 export const RQ = {
-  list: [], departments: [], suppliers: [], products: [], taxes: null,
+  list: [], departments: [], suppliers: [], products: [], taxes: null, biz: {},
   filters: { status: 'all', dept: 'all', q: '' },
   loaded: false,
   draft: null,
+};
+
+/* Solicitudes de cotización (correo al proveedor) */
+export const RFQ_STATUS = {
+  programada: 'Preparada',
+  enviada: 'Enviada',
+  fallida: 'Falló el envío',
+  respondida: 'Respondida',
+  anulada: 'Anulada',
 };
 
 const $ = (s) => document.querySelector(s);
@@ -37,12 +46,13 @@ const $$ = (s) => Array.from(document.querySelectorAll(s));
 /* ---------------- carga ---------------- */
 export async function loadRequisitions(force = false) {
   if (RQ.loaded && !force) return RQ;
-  const [reqs, depts, sups, prods, tax, user] = await Promise.all([
+  const [reqs, depts, sups, prods, tax, biz, user] = await Promise.all([
     sb.from('ts_requisitions').select('*').order('created_at', { ascending: false }),
     sb.from('ts_departments').select('*').eq('active', true).order('name'),
-    sb.from('ts_suppliers').select('id,name,active').order('name'),
+    sb.from('ts_suppliers').select('id,name,email,active').order('name'),
     sb.from('ts_products').select('id,sku,name,price').eq('active', true).order('name'),
     sb.from('ts_settings').select('value').eq('key', 'taxes').maybeSingle(),
+    sb.from('ts_settings').select('value').eq('key', 'business').maybeSingle(),
     getUser(),
   ]);
   RQ.list = reqs.data || [];
@@ -50,6 +60,7 @@ export async function loadRequisitions(force = false) {
   RQ.suppliers = sups.data || [];
   RQ.products = prods.data || [];
   RQ.taxes = tax.data?.value || { iva: 13, retention_services: 10, apply_retention: true };
+  RQ.biz = biz.data?.value || {};
   RQ.me = user?.id || null;
   RQ.loaded = true;
 
@@ -411,17 +422,19 @@ export async function openRequisition(id) {
   RQ.openId = id;
   const esAdmin = !!RQ.isAdmin;
 
-  const [its, quotes, docs, events] = await Promise.all([
+  const [its, quotes, docs, events, rfqs] = await Promise.all([
     sb.from('ts_requisition_items').select('*').eq('requisition_id', id),
     sb.from('ts_requisition_quotes').select('*').eq('requisition_id', id),
     sb.from('ts_requisition_docs').select('*').eq('requisition_id', id).order('created_at'),
     sb.from('ts_requisition_events').select('*').eq('requisition_id', id).order('created_at', { ascending: false }),
+    sb.from('ts_quote_requests').select('*').eq('requisition_id', id).order('created_at', { ascending: false }),
   ]);
 
   const items = its.data || [];
   const qs = quotes.data || [];
   const ds = docs.data || [];
   const ev = events.data || [];
+  const rqs = rfqs.data || [];
 
   const acciones = [];
   if (r.status === 'borrador' && (esAdmin || r.requested_by === RQ.me)) {
@@ -447,6 +460,9 @@ export async function openRequisition(id) {
   }
   if (['borrador', 'solicitada', 'aprobada', 'orden_emitida'].includes(r.status) && esAdmin) {
     acciones.push('<button class="btn ghost" data-rq-act="void">Anular</button>');
+  }
+  if (['borrador', 'solicitada', 'aprobada'].includes(r.status)) {
+    acciones.push('<button class="btn" data-rq-act="rfq">Solicitar cotización</button>');
   }
   acciones.push(`<a class="btn ghost" href="requisicion.html?t=${encodeURIComponent(r.id)}" target="_blank" rel="noopener">Imprimir</a>`);
 
@@ -490,6 +506,24 @@ export async function openRequisition(id) {
           <td class="small muted">${q.lead_days ? q.lead_days + ' días' : ''}</td></tr>`).join('')}</tbody></table></div>` : ''}
 
       <div class="panel">
+        <h3 style="margin-top:0">Solicitudes enviadas al proveedor</h3>
+        <p class="small muted" style="margin:.2rem 0 .6rem">Cada solicitud tiene su folio <b class="mono">SC-AÑO-00000</b> y queda registrada con fecha, destinatario y copia.</p>
+        <div id="rqRfqList">${rqs.length ? rqs.map((q) => `
+          <div class="rq-doc">
+            <span class="mono" style="font-weight:700">${esc(q.code)}</span>
+            <div style="flex:1;min-width:0">
+              <b>${esc(q.supplier_name || supName(q.supplier_id))}</b>
+              <div class="small muted" style="overflow-wrap:anywhere">${esc(q.to_email)}${q.cc_email ? ` · copia a ${esc(q.cc_email)}` : ' · sin copia'} · ${fmtShort(q.sent_at || q.created_at)}</div>
+              ${q.last_error ? `<div class="small" style="color:#ff3300;overflow-wrap:anywhere">${esc(q.last_error)}</div>` : ''}
+            </div>
+            <div class="row" style="gap:.3rem;align-items:center">
+              <span class="small" style="color:${q.status === 'fallida' ? '#ff3300' : 'inherit'}">${esc(RFQ_STATUS[q.status] || q.status)}</span>
+              ${['programada', 'fallida'].includes(q.status) ? `<button class="btn sm" type="button" data-rfq-send="${q.id}">${q.status === 'fallida' ? 'Reintentar' : 'Enviar'}</button>` : ''}
+            </div>
+          </div>`).join('') : '<p class="small muted">Todavía no se ha enviado ninguna solicitud de cotización.</p>'}</div>
+      </div>
+
+      <div class="panel">
         <div class="row" style="justify-content:space-between;align-items:center">
           <h3 style="margin:0">Documentos</h3>
           <button class="btn sm" type="button" id="rqDocAdd">+ Subir</button>
@@ -524,6 +558,15 @@ export async function openRequisition(id) {
     if (error) return toast(errMessage(error), 'err');
     window.open(data.signedUrl, '_blank', 'noopener');
   };
+
+  // enviar o reintentar una solicitud de cotización
+  const rfqBox = $('#rqRfqList');
+  if (rfqBox) {
+    rfqBox.onclick = (e) => {
+      const b = e.target.closest('[data-rfq-send]');
+      if (b) sendRfq(b.dataset.rfqSend, b, r);
+    };
+  }
 
   // subir documento
   const input = document.createElement('input');
@@ -589,6 +632,7 @@ export async function openRequisition(id) {
       if (error) return toast(errMessage(error), 'err');
       toast('Recepción registrada');
     }
+    if (a === 'rfq') { b.disabled = false; return openRfqForm(r); }
     if (a === 'invoice') return openInvoiceForm(r, b);
     if (a === 'pay') return openPayForm(r, b);
     if (a === 'close') {
@@ -719,6 +763,84 @@ function openPayForm(r, btn) {
     renderRequisitions(RQ.isAdmin);
     openRequisition(r.id);
   };
+}
+
+/* ---------------- solicitud de cotización por correo ---------------- */
+function openRfqForm(r) {
+  const activos = RQ.suppliers.filter((s) => s.active !== false);
+  const supOpts = activos.map((s) =>
+    `<option value="${s.id}" ${r.supplier_id === s.id ? 'selected' : ''}>${esc(s.name)}${s.email ? ' · ' + esc(s.email) : ' · SIN CORREO'}</option>`).join('');
+  const defSup = activos.find((s) => s.id === r.supplier_id) || null;
+
+  openRqDrawer({
+    title: r.code,
+    subtitle: 'Solicitud de cotización por correo',
+    body: `<div class="panel">
+      <div class="field"><label for="rfqSup">Proveedor *</label>
+        <select id="rfqSup"><option value="">— seleccionar —</option>${supOpts}</select></div>
+      <div class="field"><label for="rfqTo">Correo del proveedor *</label>
+        <input id="rfqTo" type="email" value="${esc(defSup?.email || '')}" placeholder="compras@proveedor.com">
+        <span class="small muted">Sale del correo registrado en Proveedores. Puedes corregirlo para este envío.</span></div>
+      <div class="field"><label for="rfqCc">Copia para el negocio</label>
+        <input id="rfqCc" type="email" value="${esc(RQ.biz?.email || '')}" placeholder="correo@negocio.com">
+        <span class="small muted">Ahí queda el registro de lo solicitado. Se configura en Ajustes → Datos del negocio.</span></div>
+      <div class="row" style="gap:.5rem">
+        <div class="field" style="flex:1"><label for="rfqNote">Nota para el proveedor</label>
+          <textarea id="rfqNote" rows="2" placeholder="Condiciones, forma de pago, entrega..."></textarea></div>
+        <div class="field" style="flex:0 0 110px"><label for="rfqDays">Responder en (días)</label>
+          <input id="rfqDays" type="number" min="1" max="60" value="5"></div>
+      </div>
+      <p class="small muted" style="margin:.3rem 0 0">El folio se asigna al enviar: <b class="mono">SC-${new Date().getFullYear()}-00000</b>. El correo lleva las partidas <b>sin precios</b>, tu nota y el plazo para responder.</p>
+    </div>`,
+    foot: `<button class="btn primary" id="rfqSend">Enviar solicitud</button><button class="btn ghost" id="rfqBack">Cancelar</button>`,
+  });
+
+  const selSup = $('#rfqSup');
+  const toI = $('#rfqTo');
+  if (defSup) selSup.value = defSup.id;
+  selSup.onchange = () => {
+    const s = RQ.suppliers.find((x) => x.id === selSup.value);
+    toI.value = s?.email || '';
+  };
+  $('#rfqBack').onclick = () => openRequisition(r.id);
+  $('#rfqSend').onclick = async (e) => {
+    const btn = e.currentTarget;
+    const to = toI.value.trim();
+    if (!selSup.value) return toast('Selecciona el proveedor', 'err');
+    if (!to) return toast('Falta el correo del proveedor', 'err');
+    btn.disabled = true;
+    const { data, error } = await sb.rpc('ts_rfq_create', {
+      p_req: r.id,
+      p_supplier: selSup.value,
+      p_to: to,
+      p_cc: $('#rfqCc').value.trim() || null,
+      p_note: $('#rfqNote').value.trim() || null,
+      p_days: Number($('#rfqDays').value) || 5,
+    });
+    if (error) { btn.disabled = false; return toast(errMessage(error), 'err'); }
+    toast(`${data.code} preparada, enviando…`);
+    await sendRfq(data.id, btn, r);
+    await loadRequisitions(true);
+    renderRequisitions(RQ.isAdmin);
+    openRequisition(r.id);
+  };
+}
+
+/** Envía (o reintenta) una solicitud ya registrada. El registro lo cierra la Edge Function. */
+async function sendRfq(rfqId, btn, r) {
+  if (btn) btn.disabled = true;
+  try {
+    const { data, error } = await sb.functions.invoke('rfq-send', { body: { id: rfqId } });
+    if (error) throw error;
+    if (data?.error) throw new Error(data.error);
+    toast(`Solicitud ${data?.code || ''} enviada a ${data?.to || 'proveedor'}`);
+    return true;
+  } catch (err) {
+    toast(`No se pudo enviar: ${errMessage(err)}`, 'err');
+    return false;
+  } finally {
+    if (btn) btn.disabled = false;
+  }
 }
 
 /* ---------------- eventos ---------------- */
