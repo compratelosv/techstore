@@ -86,6 +86,7 @@
         <button data-view="suppliers" id="navSuppliers">🚚 Proveedores</button>
         <button data-view="users" id="navUsers">👥 Usuarios</button>
         <button data-view="settings" id="navSettings">⚙️ Configuración</button>
+        <button data-view="fiscal" id="navFiscal">🧾 Facturación</button>
       </div>
     </nav>
 
@@ -524,6 +525,7 @@
           <div class="field" style="flex:1"><label for="fProvider">Proveedor de facturación</label>
             <select id="fProvider">
               <option value="">— Sin proveedor todavía —</option>
+              <option value="mh_gratuito">Sistema de Facturación del MH (gratuito, sin API)</option>
               <option value="facturosv">Facturosv</option>
               <option value="infile">Infile</option>
               <option value="gosocket">Gosocket</option>
