@@ -697,6 +697,17 @@ async function openOrder(id) {
         <div class="small">${order.fulfillment === 'retiro' ? 'Retiro en tienda' : 'Envío a domicilio'}</div>
         <div class="small muted">${addr}</div>
         ${order.ship_notes ? `<div class="small muted">Nota: ${esc(order.ship_notes)}</div>` : ''}
+
+        <h3 style="margin-top:.9rem">Transportista a cargo</h3>
+        <div class="field" style="margin:0">
+          <select id="ordCourier" data-order="${order.id}" ${['pagado', 'en_preparacion', 'en_ruta'].includes(order.status) ? '' : 'disabled'}>
+            <option value="">— Sin asignar —</option>
+            ${(state.couriers || []).filter((c) => c.active).map((c) => `<option value="${c.id}" ${order.courier_id === c.id ? 'selected' : ''}>
+              ${esc(c.full_name || c.email)}${c.assigned ? ` · ${c.assigned} en curso` : ''}
+            </option>`).join('')}
+          </select>
+        </div>
+        <p class="small muted" style="margin:.3rem 0 0">Al asignarlo, el pedido aparece en su pantalla de “Mis entregas” con la dirección y la franja.</p>
       </div>
 
       <div class="panel" style="margin-bottom:.8rem">
@@ -841,6 +852,23 @@ async function loadCouriers() {
   const { data } = await sb.rpc('ts_list_couriers');
   state.couriers = data || [];
 }
+
+/* asignar transportista directo desde la ficha del pedido */
+document.addEventListener('change', async (e) => {
+  const sel = e.target.closest('#ordCourier');
+  if (!sel) return;
+  const orderId = sel.dataset.order;
+  sel.disabled = true;
+  const { error } = await sb.rpc('ts_assign_courier', {
+    p_order_id: orderId,
+    p_courier_id: sel.value || null,
+  });
+  sel.disabled = false;
+  if (error) return toast(errMessage(error), 'err');
+  toast(sel.value ? 'Transportista asignado' : 'Pedido sin transportista');
+  await refreshAll();
+  openOrder(orderId);
+});
 
 function openAssignCourier(orderId) {
   const order = state.orders.find((o) => o.id === orderId);
