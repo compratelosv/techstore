@@ -132,6 +132,10 @@ async function boot() {
   const growth = $('#navGrowth');
   if (growth) growth.hidden = !canMarketing;
 
+  // El personal operativo (repartidor, cajero) no sale a la tienda desde el panel.
+  const lnkShop = document.getElementById('lnkShop');
+  if (lnkShop) lnkShop.hidden = !(isAdmin || isCM);
+
   // El community manager entra solo a marketing: nada de pedidos, dinero ni inventario.
   if (isCM) {
     const allowed = ['marketing', 'editorial', 'content', 'metrics'];
