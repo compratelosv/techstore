@@ -3625,10 +3625,114 @@ async function lookupProductData(code) {
   return Promise.race([all, timeout]);
 }
 
+/* crear categoría al vuelo desde el desplegable del producto */
+document.addEventListener('change', async (e) => {
+  const sel = e.target.closest('#fCat');
+  if (!sel || sel.value !== '__new') return;
+  const nombre = prompt('Nombre de la nueva categoría (ej: Ropa, Zapatos, Skincare):');
+  if (!nombre || !nombre.trim()) { sel.value = ''; return; }
+  const limpio = nombre.trim();
+  const slug = limpio.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  const orden = Math.max(0, ...state.categories.map((c) => c.sort_order || 0)) + 1;
+  const { data, error } = await sb.from('ts_categories')
+    .insert({ name: limpio, slug, sort_order: orden }).select().single();
+  if (error) return toast(errMessage(error), 'err');
+  await loadCategories();
+  const opts = state.categories
+    .map((c) => `<option value="${c.id}" ${c.id === data.id ? 'selected' : ''}>${esc(c.name)}</option>`)
+    .join('') + '<option value="__new">＋ Nueva categoría…</option>';
+  sel.innerHTML = '<option value="">— sin categoría —</option>' + opts;
+  sel.value = data.id;
+  toast(`Categoría “${data.name}” creada`);
+});
+
+/* administrar categorías */
+const btnCat = document.getElementById('btnCategories');
+if (btnCat) btnCat.onclick = () => openCategories();
+
+async function openCategories() {
+  const { data: cats } = await sb.from('ts_categories').select('*').order('sort_order');
+  const { data: prods } = await sb.from('ts_products').select('category_id');
+  const usos = {};
+  (prods || []).forEach((p) => { if (p.category_id) usos[p.category_id] = (usos[p.category_id] || 0) + 1; });
+
+  openDrawer({
+    title: 'Categorías de productos',
+    subtitle: 'Agregá rubros nuevos: ropa, zapatos, skincare…',
+    body: `
+      <div class="field">
+        <label>Nueva categoría</label>
+        <div class="row" style="gap:.4rem">
+          <input id="ncName" placeholder="Ej: Ropa" style="flex:1">
+          <button class="btn" id="ncAdd">Agregar</button>
+        </div>
+      </div>
+      <table class="table" style="margin-top:.8rem">
+        <thead><tr><th>Categoría</th><th>Productos</th><th></th></tr></thead>
+        <tbody>
+          ${(cats || []).map((c) => `
+            <tr>
+              <td data-label="Categoría"><b>${esc(c.name)}</b><div class="small muted mono">${esc(c.slug)}</div></td>
+              <td data-label="Productos">${usos[c.id] || 0}</td>
+              <td data-label="" class="row" style="gap:.3rem">
+                <button class="btn sm ghost" data-cat-rename="${c.id}" data-name="${esc(c.name)}">Renombrar</button>
+                ${(usos[c.id] || 0) > 0
+                  ? '<span class="small muted">en uso</span>'
+                  : `<button class="btn sm danger" data-cat-del="${c.id}" data-name="${esc(c.name)}">Borrar</button>`}
+              </td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+      <p class="small muted" style="margin-top:.6rem">Una categoría con productos no se puede borrar: primero movés esos productos a otra.</p>`,
+    foot: '<button class="btn ghost" data-close-drawer>Cerrar</button>',
+  });
+
+  const crear = async () => {
+    const inp = document.getElementById('ncName');
+    const nombre = (inp.value || '').trim();
+    if (nombre.length < 2) return toast('Escribí un nombre', 'err');
+    const slug = nombre.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    const orden = Math.max(0, ...(cats || []).map((c) => c.sort_order || 0)) + 1;
+    const { error } = await sb.from('ts_categories').insert({ name: nombre, slug, sort_order: orden });
+    if (error) return toast(errMessage(error), 'err');
+    toast('Categoría agregada');
+    await loadCategories();
+    await refreshAll();
+    openCategories();
+  };
+  const btnAdd = document.getElementById('ncAdd');
+  if (btnAdd) btnAdd.onclick = crear;
+  const inp = document.getElementById('ncName');
+  if (inp) inp.onkeydown = (ev) => { if (ev.key === 'Enter') crear(); };
+}
+
+document.addEventListener('click', async (e) => {
+  const ren = e.target.closest('[data-cat-rename]');
+  if (ren) {
+    const nuevo = prompt('Nuevo nombre de la categoría:', ren.dataset.name);
+    if (!nuevo || !nuevo.trim()) return;
+    const { error } = await sb.from('ts_categories').update({ name: nuevo.trim() }).eq('id', ren.dataset.cat_rename);
+    if (error) return toast(errMessage(error), 'err');
+    toast('Categoría renombrada');
+    await loadCategories(); await refreshAll(); openCategories();
+    return;
+  }
+  const del = e.target.closest('[data-cat-del]');
+  if (del) {
+    if (!confirm(`¿Borrar la categoría “${del.dataset.name}”?\n\nSolo se puede si no tiene productos.`)) return;
+    const { error } = await sb.from('ts_categories').delete().eq('id', del.dataset.cat_del);
+    if (error) return toast(errMessage(error), 'err');
+    toast('Categoría borrada');
+    await loadCategories(); await refreshAll(); openCategories();
+  }
+});
+
 function openProductEditor(p = null) {
   const catOptions = state.categories
     .map((c) => `<option value="${c.id}" ${p?.category_id === c.id ? 'selected' : ''}>${esc(c.name)}</option>`)
-    .join('');
+    .join('') + '<option value="__new">＋ Nueva categoría…</option>';
 
   openDrawer({
     title: p ? p.sku : 'Nuevo producto',
