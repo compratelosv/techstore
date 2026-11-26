@@ -2988,6 +2988,7 @@ function pintarUsuarios() {
       <td data-label="Último acceso" class="small muted">${u.last_sign_in ? fmtDate(u.last_sign_in) : 'nunca'}</td>
       <td data-label="Acciones" class="row" style="gap:.35rem">
         <button class="btn sm" data-reset="${u.id}" data-email="${esc(u.email || '')}">Contraseña</button>
+        ${self ? '' : `<button class="btn sm danger" data-del="${u.id}" data-email="${esc(u.email || '')}">Borrar</button>`}
         <button class="btn sm ghost" data-edit="${u.id}" data-name="${esc(u.full_name || '')}" data-phone="${esc(u.phone || '')}" data-email="${esc(u.email || '')}">Editar</button>
         ${self ? '' : `<button class="btn sm ${u.active ? 'danger' : ''}" data-toggle="${u.id}" data-active="${u.active}">
             ${u.active ? 'Desactivar' : 'Activar'}
@@ -3215,6 +3216,34 @@ $('#usersTable').addEventListener('click', async (e) => {
 
   if (reset) return openResetPassword(reset.dataset.reset, reset.dataset.email);
   if (edit) return openEditUser(edit.dataset);
+
+  const del = e.target.closest('[data-del]');
+  if (del) {
+    const email = del.dataset.email;
+    const ok = confirm(
+      'BORRADO DEFINITIVO DE CUENTA\n\n' +
+        `Se eliminará la cuenta:\n${email}\n\n` +
+        'Esta acción NO se puede deshacer: la persona pierde el acceso, su perfil y sus favoritos.\n\n' +
+        'Los pedidos ya emitidos se conservan por obligación fiscal.\n\n' +
+        '¿Querés continuar?'
+    );
+    if (!ok) return;
+
+    const escrito = prompt(`Para confirmar el borrado, escribí el correo exacto de la cuenta:\n\n${email}`);
+    if (escrito === null) return;
+
+    del.disabled = true;
+    const { data, error } = await sb.rpc('ts_admin_delete_account', {
+      p_user_id: del.dataset.del,
+      p_confirmacion: escrito,
+    });
+    del.disabled = false;
+
+    if (error) return toast(errMessage(error), 'err');
+    toast(`Cuenta de ${data.email} borrada definitivamente`);
+    await refreshAll();
+    return;
+  }
 
   if (toggle) {
     const activar = toggle.dataset.active === 'false';
