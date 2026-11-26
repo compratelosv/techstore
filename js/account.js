@@ -217,20 +217,32 @@ function itemsEnCarrito() {
   }
 }
 
-function showPostVerifyDialog(n) {
+function showPostVerifyDialog(n, cupon) {
   const wrap = document.createElement('div');
   wrap.style.cssText =
     'position:fixed;inset:0;background:rgba(0,0,0,.62);display:flex;align-items:center;justify-content:center;padding:1rem;z-index:9999';
   wrap.innerHTML = `
-    <div class="panel" style="max-width:420px;width:100%;text-align:left">
-      <h3 style="margin:.1rem 0 .5rem">¡Listo! Tu WhatsApp quedó verificado</h3>
-      <p class="small muted" style="margin:0 0 1rem">
-        Tenés <b>${n} ${n === 1 ? 'artículo' : 'artículos'}</b> en tu carrito.
-        ¿Querés ir a pagar ahora o seguir mirando productos?
+    <div class="panel" style="max-width:440px;width:100%;text-align:left">
+      <h3 style="margin:.1rem 0 .35rem">¡Gracias por registrarte!</h3>
+      <p class="small muted" style="margin:0 0 .8rem">
+        Nos alegra tenerte en TechStore. Por ser parte de la casa te damos un
+        <b>10% de descuento de bienvenida</b> para cualquier compra.
+      </p>
+      ${cupon ? `<div style="border:1px dashed var(--accent,#ff3300);border-radius:10px;padding:.7rem .8rem;margin-bottom:.8rem">
+        <div class="small muted">Tu cupón</div>
+        <div class="mono" style="font-size:1.15rem;font-weight:700;letter-spacing:.06em">${esc(cupon.code)}</div>
+        <div class="small muted" style="margin-top:.25rem">${cupon.discount_type === 'percent' ? cupon.discount_value + '% de descuento' : money(cupon.discount_value)}${cupon.ends_at ? ' · válido hasta ' + fmtDate(cupon.ends_at) : ''}</div>
+      </div>` : ''}
+      ${n > 0 ? `<p class="small" style="margin:0 0 .8rem">Tenés <b>${n} ${n === 1 ? 'artículo' : 'artículos'}</b> en tu carrito: podés usarlo ahora mismo.</p>` : ''}
+      <p class="small muted" style="font-size:.68rem;line-height:1.35;margin:0 0 .9rem">
+        Términos: un cupón por compra, no acumulable con otras promociones (no se suman descuentos),
+        tope máximo del 20% por compra. Aplicable solo a productos de la tienda.
       </p>
       <div class="row" style="gap:.5rem;flex-wrap:wrap">
-        <a class="btn" href="carrito.html" style="flex:1;min-width:150px;text-align:center">Ir a pagar</a>
-        <a class="btn ghost" href="index.html" style="flex:1;min-width:150px;text-align:center">Seguir viendo</a>
+        ${n > 0 ? '<a class="btn" href="carrito.html" style="flex:1;min-width:140px;text-align:center">Ir a pagar</a>' : ''}
+        <a class="btn ${n > 0 ? 'ghost' : ''}" href="index.html" style="flex:1;min-width:140px;text-align:center">
+          ${n > 0 ? 'Seguir viendo' : 'Ver productos'}
+        </a>
       </div>
     </div>`;
   document.body.appendChild(wrap);
@@ -249,7 +261,14 @@ document.getElementById('vConfirm').addEventListener('click', async (e) => {
 
   // si había algo en el carrito se le ofrece pagar; si no, directo al catálogo
   const n = itemsEnCarrito();
-  if (n > 0) showPostVerifyDialog(n);
+  let cupon = null;
+  try {
+    const { data } = await sb.rpc('ts_my_coupons');
+    cupon = (data || [])[0] || null;
+  } catch {
+    cupon = null;
+  }
+  if (n > 0 || cupon) showPostVerifyDialog(n, cupon);
   else location.href = 'index.html';
 });
 
