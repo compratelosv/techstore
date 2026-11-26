@@ -36,10 +36,15 @@ authForm.addEventListener('submit', async (e) => {
 
   try {
     if (mode === 'signup') {
+      // el enlace del correo debe volver al home de la tienda, no a localhost
+      const homeUrl = location.origin + location.pathname.replace(/\/[^/]*$/, '/');
       const { data, error } = await sb.auth.signUp({
         email,
         password,
-        options: { data: { full_name: fullName } },
+        options: {
+          data: { full_name: fullName },
+          emailRedirectTo: `${homeUrl}index.html?confirmado=1`,
+        },
       });
       if (error) throw error;
       if (!data.session) {
