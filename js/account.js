@@ -206,6 +206,36 @@ document.getElementById('vSend').addEventListener('click', async (e) => {
   toast('Código generado');
 });
 
+/* ---------- después de verificar el teléfono: pagar o seguir mirando ---------- */
+function itemsEnCarrito() {
+  const n = Number(localStorage.getItem('ts.cart.count') || 0);
+  if (n > 0) return n;
+  try {
+    return JSON.parse(localStorage.getItem('ts.cart') || '[]').reduce((s, i) => s + (i.qty || 1), 0);
+  } catch {
+    return 0;
+  }
+}
+
+function showPostVerifyDialog(n) {
+  const wrap = document.createElement('div');
+  wrap.style.cssText =
+    'position:fixed;inset:0;background:rgba(0,0,0,.62);display:flex;align-items:center;justify-content:center;padding:1rem;z-index:9999';
+  wrap.innerHTML = `
+    <div class="panel" style="max-width:420px;width:100%;text-align:left">
+      <h3 style="margin:.1rem 0 .5rem">¡Listo! Tu WhatsApp quedó verificado</h3>
+      <p class="small muted" style="margin:0 0 1rem">
+        Tenés <b>${n} ${n === 1 ? 'artículo' : 'artículos'}</b> en tu carrito.
+        ¿Querés ir a pagar ahora o seguir mirando productos?
+      </p>
+      <div class="row" style="gap:.5rem;flex-wrap:wrap">
+        <a class="btn" href="carrito.html" style="flex:1;min-width:150px;text-align:center">Ir a pagar</a>
+        <a class="btn ghost" href="index.html" style="flex:1;min-width:150px;text-align:center">Seguir viendo</a>
+      </div>
+    </div>`;
+  document.body.appendChild(wrap);
+}
+
 document.getElementById('vConfirm').addEventListener('click', async (e) => {
   const btn = e.currentTarget;
   const code = document.getElementById('vCode').value.trim();
@@ -215,7 +245,12 @@ document.getElementById('vConfirm').addEventListener('click', async (e) => {
   btn.disabled = false;
   if (error) return toast(errMessage(error), 'err');
   toast('¡WhatsApp verificado! Ya podés comprar.');
-  render();
+  await render();
+
+  // si había algo en el carrito se le ofrece pagar; si no, directo al catálogo
+  const n = itemsEnCarrito();
+  if (n > 0) showPostVerifyDialog(n);
+  else location.href = 'index.html';
 });
 
 render().catch((err) => toast(errMessage(err), 'err'));
