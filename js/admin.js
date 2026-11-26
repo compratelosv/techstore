@@ -981,7 +981,7 @@ async function renderDeliveries() {
           ${tel ? `<a class="btn sm ghost" href="tel:${esc(tel)}">📞 Llamar</a>` : ''}
           ${activo && puedeEscanear ? `<button class="btn sm" data-cr-scan="${o.id}">📷 Escanear bultos</button>` : ''}
           ${o.status === 'listo' ? `<button class="btn sm primary" data-cr-go="${o.id}">🚀 Salir a ruta</button>` : ''}
-          ${activo ? `<button class="btn sm ${completo ? 'primary' : 'ghost'}" data-cr-done="${o.id}">✅ Entregado</button>` : ''}
+          ${activo ? `<button class="btn sm ${completo ? 'primary' : 'ghost'}" data-cr-done="${o.id}" ${completo ? '' : 'disabled title="Escaneá los bultos antes de cerrar la entrega"'}>✅ Entregado</button>` : ''}
         </div>
       </div>`;
     })
@@ -1042,6 +1042,139 @@ function startDeliveryScan(orderId) {
   }).then(() => renderDeliveries());
 }
 
+/* ---------------- acta de entrega ---------------- */
+function openActa(orderId, btn) {
+  openDrawer({
+    title: 'Acta de entrega',
+    subtitle: `Pedido ${orderId} · quien recibe firma la conformidad`,
+    body: `
+      <div class="field">
+        <label>Nombre de quien recibe *</label>
+        <input id="acNombre" placeholder="Nombre completo" autocomplete="off">
+      </div>
+      <div class="field">
+        <label>DUI o documento (opcional)</label>
+        <input id="acDoc" placeholder="00000000-0" inputmode="numeric" autocomplete="off">
+      </div>
+      <div class="field">
+        <label>Foto del paquete entregado (opcional)</label>
+        <input id="acFoto" type="file" accept="image/*" capture="environment">
+      </div>
+      <div class="field">
+        <label>Firma del cliente *</label>
+        <canvas id="acPad" width="600" height="220"
+          style="width:100%;height:150px;background:#fff;border-radius:8px;touch-action:none;display:block"></canvas>
+        <div class="row" style="justify-content:space-between;margin-top:.35rem">
+          <span class="small muted">Firmá con el dedo dentro del recuadro</span>
+          <button class="btn sm ghost" id="acClear" type="button">Borrar firma</button>
+        </div>
+      </div>
+      <label class="row" style="align-items:center;gap:.5rem;margin-top:.8rem">
+        <input type="checkbox" id="acOk" checked style="width:auto;margin:0">
+        <span class="small">El cliente recibió el pedido conforme y en buen estado</span>
+      </label>
+      <div class="field" style="margin-top:.8rem">
+        <label>Observaciones (opcional)</label>
+        <input id="acNotes" placeholder="Ej: caja abollada, entregado a un familiar…" autocomplete="off">
+      </div>
+      <div class="msg" id="acMsg" style="margin-top:.6rem"></div>`,
+    foot: `
+      <button class="btn ghost" data-close-drawer type="button">Cancelar</button>
+      <button class="btn primary" id="acSave" type="button">Confirmar entrega</button>`,
+  });
+
+  const pad = document.getElementById('acPad');
+  const ctx = pad.getContext('2d');
+  ctx.lineWidth = 3;
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = '#111';
+  let drawing = false, trazos = 0;
+
+  const pos = (ev) => {
+    const r = pad.getBoundingClientRect();
+    const t = ev.touches ? ev.touches[0] : ev;
+    return {
+      x: (t.clientX - r.left) * (pad.width / r.width),
+      y: (t.clientY - r.top) * (pad.height / r.height),
+    };
+  };
+  const start = (ev) => { ev.preventDefault(); drawing = true; const p = pos(ev); ctx.beginPath(); ctx.moveTo(p.x, p.y); };
+  const move = (ev) => { if (!drawing) return; ev.preventDefault(); const p = pos(ev); ctx.lineTo(p.x, p.y); ctx.stroke(); trazos++; };
+  const end = () => { drawing = false; };
+
+  pad.addEventListener('pointerdown', start);
+  pad.addEventListener('pointermove', move);
+  window.addEventListener('pointerup', end);
+  pad.addEventListener('touchstart', start, { passive: false });
+  pad.addEventListener('touchmove', move, { passive: false });
+  pad.addEventListener('touchend', end);
+
+  document.getElementById('acClear').onclick = () => {
+    ctx.clearRect(0, 0, pad.width, pad.height); trazos = 0;
+  };
+
+  const say = (t, kind = 'err') => {
+    const m = document.getElementById('acMsg');
+    m.textContent = t; m.className = 'msg show ' + kind;
+  };
+
+  document.getElementById('acSave').onclick = async () => {
+    const nombre = (document.getElementById('acNombre').value || '').trim();
+    const doc = (document.getElementById('acDoc').value || '').trim();
+    const ok = document.getElementById('acOk').checked;
+    const notes = (document.getElementById('acNotes').value || '').trim();
+    const foto = document.getElementById('acFoto').files[0] || null;
+
+    if (nombre.length < 3) return say('Escribí el nombre de quien recibe.');
+    if (trazos < 8) return say('Falta la firma del cliente en el recuadro.');
+
+    const save = document.getElementById('acSave');
+    save.disabled = true; save.textContent = 'Guardando…';
+
+    try {
+      const uid = state.profile?.id || null;
+      const stamp = Date.now();
+      let photo_path = null, signature_path = null;
+
+      // firma
+      const blob = await new Promise((r) => pad.toBlob(r, 'image/png'));
+      const sigPath = `${orderId}/firma-${stamp}.png`;
+      const upSig = await sb.storage.from('ts_entregas').upload(sigPath, blob, { contentType: 'image/png' });
+      if (upSig.error) throw upSig.error;
+      signature_path = sigPath;
+
+      // foto
+      if (foto) {
+        const ext = (foto.name.split('.').pop() || 'jpg').toLowerCase();
+        const phPath = `${orderId}/foto-${stamp}.${ext}`;
+        const upPh = await sb.storage.from('ts_entregas').upload(phPath, foto, { contentType: foto.type || 'image/jpeg' });
+        if (upPh.error) throw upPh.error;
+        photo_path = phPath;
+      }
+
+      const { data: proof, error: insErr } = await sb.from('ts_delivery_proofs').insert({
+        order_id: orderId, courier_id: uid, received_by: nombre, doc_number: doc || null,
+        conformidad: ok, notes: notes || null, photo_path, signature_path,
+      }).select().single();
+      if (insErr) throw insErr;
+
+      const { error } = await sb.rpc('ts_courier_set_status', { p_order_id: orderId, p_status: 'entregado' });
+      if (error) {
+        // no dejamos actas de entregas que no se completaron
+        await sb.from('ts_delivery_proofs').delete().eq('id', proof.id);
+        throw error;
+      }
+
+      toast('Entrega registrada con acta');
+      document.querySelector('[data-close-drawer]')?.click();
+      renderDeliveries();
+    } catch (err) {
+      say('No se pudo guardar: ' + (err.message || err));
+      save.disabled = false; save.textContent = 'Confirmar entrega';
+    }
+  };
+}
+
 $('#delList').addEventListener('click', async (e) => {
   const scan = e.target.closest('[data-cr-scan]');
   const go = e.target.closest('[data-cr-go]');
@@ -1052,7 +1185,7 @@ $('#delList').addEventListener('click', async (e) => {
 
   const id = (go || done).dataset[go ? 'crGo' : 'crDone'];
   const status = go ? 'en_ruta' : 'entregado';
-  if (done && !confirm('¿Confirmas que el pedido fue entregado al cliente?')) return;
+  if (done) return openActa(id, done);
 
   const btn = (go || done);
   btn.disabled = true;
