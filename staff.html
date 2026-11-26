@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Acceso del personal · TechStore</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" href="assets/favicon.svg">
+<style>
+  :root{
+    --bg:#0a0a0a; --card:#131313; --line:#242424;
+    --txt:#ededed; --mute:#8a8a8a; --acc:#ff3300;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; min-height:100vh; display:grid; place-items:center; padding:24px;
+    background:var(--bg); color:var(--txt);
+    font-family:"Space Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
+  .shell{width:100%; max-width:390px}
+  .brand{display:flex; align-items:center; gap:.6rem; margin-bottom:1.6rem}
+  .dot{width:9px;height:9px;background:var(--acc);border-radius:50%;box-shadow:0 0 12px var(--acc)}
+  .brand b{font-size:.95rem; letter-spacing:.06em}
+  .brand span{color:var(--mute); font-size:.72rem; letter-spacing:.14em; text-transform:uppercase}
+  h1{font-size:1.32rem; line-height:1.25; margin:0 0 .35rem}
+  .sub{color:var(--mute); font-size:.82rem; margin:0 0 1.5rem}
+  form{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:1.25rem}
+  label{display:block; font-size:.72rem; letter-spacing:.1em; text-transform:uppercase; color:var(--mute); margin-bottom:.4rem}
+  input{
+    width:100%; padding:.85rem .9rem; margin-bottom:1rem;
+    background:#0d0d0d; border:1px solid var(--line); border-radius:8px;
+    color:var(--txt); font:inherit; font-size:.95rem;
+  }
+  input:focus{outline:none; border-color:var(--acc)}
+  button{
+    width:100%; padding:.9rem; border:0; border-radius:8px; cursor:pointer;
+    background:var(--acc); color:#fff; font:inherit; font-weight:700;
+    letter-spacing:.04em; font-size:.92rem;
+  }
+  button:disabled{opacity:.55; cursor:wait}
+  .msg{margin-top:1rem; font-size:.82rem; line-height:1.45; display:none}
+  .msg.show{display:block}
+  .msg.err{color:#ff6b52}
+  .msg.ok{color:#4ade80}
+  .foot{margin-top:1.4rem; font-size:.7rem; color:#5a5a5a; text-align:center; line-height:1.6}
+  .lock{margin-top:1.2rem; padding-top:1rem; border-top:1px solid var(--line);
+    font-size:.7rem; color:#5a5a5a; display:flex; gap:.5rem; align-items:flex-start}
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="brand">
+    <span class="dot"></span>
+    <div>
+      <b>TECHSTORE</b><br>
+      <span>Acceso del personal</span>
+    </div>
+  </div>
+
+  <h1>Entrá con tu cuenta de trabajo</h1>
+  <p class="sub">Panel interno. Las cuentas de personal las crea un administrador.</p>
+
+  <form id="f" autocomplete="on">
+    <label for="email">Correo</label>
+    <input id="email" type="email" inputmode="email" autocomplete="username" required placeholder="nombre@techstore.test">
+    <label for="pass">Contraseña</label>
+    <input id="pass" type="password" autocomplete="current-password" required placeholder="••••••••">
+    <button id="go" type="submit">Entrar</button>
+    <div class="msg" id="msg" role="status" aria-live="polite"></div>
+  </form>
+
+  <div class="lock">
+    <span>🔒</span>
+    <span>Solo personal autorizado. Si no sos parte del equipo, volvé a la tienda.</span>
+  </div>
+
+  <p class="foot">
+    TechStore SV · San Salvador<br>
+    Acceso registrado · No compartas tu contraseña
+  </p>
+</div>
+
+<script src="vendor/supabase.js"></script>
+<script type="module">
+import { sb } from './js/core.js';
+
+const $ = (id) => document.getElementById(id);
+const msg = (t, kind = 'err') => {
+  const m = $('msg');
+  m.className = 'msg show ' + kind;
+  m.textContent = t;
+};
+
+/* destino según rol */
+function destino(role) {
+  if (role === 'transportista') return 'admin.html#entregas';
+  if (role === 'cajero') return 'admin.html#pos';
+  return 'admin.html';
+}
+const ROLES = ['admin', 'manager', 'cajero', 'transportista', 'superadmin', 'vendedor'];
+
+async function irSiYaEntro() {
+  const { data: { user } } = await sb.auth.getUser();
+  if (!user) return;
+  const { data: p } = await sb.from('ts_profiles').select('role').eq('id', user.id).maybeSingle();
+  if (p && ROLES.includes(p.role)) location.replace(destino(p.role));
+}
+
+irSiYaEntro();
+
+$('f').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn = $('go');
+  btn.disabled = true;
+  btn.textContent = 'Verificando…';
+  $('msg').className = 'msg';
+
+  const email = $('email').value.trim();
+  const pass = $('pass').value;
+
+  try {
+    const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
+    if (error) {
+      msg('Correo o contraseña incorrectos.');
+      return;
+    }
+    const { data: p } = await sb.from('ts_profiles').select('role, full_name').eq('id', data.user.id).maybeSingle();
+    if (!p || !ROLES.includes(p.role)) {
+      await sb.auth.signOut();
+      msg('Esta cuenta no tiene acceso al panel.');
+      return;
+    }
+    msg('Entrando como ' + (p.full_name || p.role) + '…', 'ok');
+    location.replace(destino(p.role));
+  } catch (err) {
+    msg('No pudimos conectar. Revisá tu conexión e intentá de nuevo.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Entrar';
+  }
+});
+</script>
+</body>
+</html>
