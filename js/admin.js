@@ -3232,15 +3232,33 @@ $('#usersTable').addEventListener('click', async (e) => {
     const escrito = prompt(`Para confirmar el borrado, escribí el correo exacto de la cuenta:\n\n${email}`);
     if (escrito === null) return;
 
+    const motivo = prompt('Motivo del borrado (queda guardado en el registro de auditoría):');
+    if (motivo === null) return;
+    if ((motivo || '').trim().length < 5) return toast('Escribí un motivo de al menos 5 caracteres', 'err');
+
+    const pass = prompt('Para autorizar el borrado, escribí TU contraseña de administrador:');
+    if (pass === null) return;
+
     del.disabled = true;
+    const { data: yo } = await sb.auth.getUser();
+    const { error: passMal } = await sb.auth.signInWithPassword({
+      email: yo.user.email,
+      password: pass,
+    });
+    if (passMal) {
+      del.disabled = false;
+      return toast('Contraseña incorrecta: no se borró nada', 'err');
+    }
+
     const { data, error } = await sb.rpc('ts_admin_delete_account', {
       p_user_id: del.dataset.del,
       p_confirmacion: escrito,
+      p_reason: motivo,
     });
     del.disabled = false;
 
     if (error) return toast(errMessage(error), 'err');
-    toast(`Cuenta de ${data.email} borrada definitivamente`);
+    toast(`Cuenta de ${data.email} borrada · quedó registrada en auditoría`);
     await refreshAll();
     return;
   }
