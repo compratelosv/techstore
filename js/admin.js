@@ -2741,6 +2741,7 @@ function drawPromoRows() {
       <td data-label="Estado"><span class="badge ${cls}">${etiqueta}</span></td>
       <td data-label="">
         <button class="btn sm ghost" data-promo-toggle="${p.id}" data-active="${p.active}">${p.active ? 'Pausar' : 'Activar'}</button>
+        <button class="btn sm danger" data-promo-del="${p.id}" data-code="${esc(p.code)}">Borrar</button>
       </td>
     </tr>`;
   }).join('');
@@ -2764,6 +2765,26 @@ if (promoFiltersBox) {
 }
 
 $('#promoTable').addEventListener('click', async (e) => {
+  const del = e.target.closest('[data-promo-del]');
+  if (del) {
+    const code = del.dataset.code || '';
+    if (!confirm(`¿Borrar la promoción ${code}?\n\nSi ya tiene usos, el sistema lo va a impedir (conviene pausarla).`)) return;
+    const conf = prompt(`Escribí el código para confirmar:\n${code}`);
+    if (conf === null) return;
+    if (conf.trim().toUpperCase() !== code.trim().toUpperCase()) return toast('El código no coincide: no se borró nada', 'err');
+    const motivo = prompt('Motivo (queda en la auditoría):', 'Limpieza de pruebas');
+    if (motivo === null) return;
+    del.disabled = true;
+    const { error } = await sb.rpc('ts_admin_delete_promo', {
+      p_promo_id: del.dataset.promoDel, p_confirmacion: conf.trim(), p_reason: (motivo || 'Limpieza de pruebas'),
+    });
+    del.disabled = false;
+    if (error) return toast(errMessage(error), 'err');
+    toast(`Promoción ${code} eliminada`);
+    await renderPromos();
+    return;
+  }
+
   const b = e.target.closest('[data-promo-toggle]');
   if (!b) return;
   const activar = b.dataset.active !== 'true';
