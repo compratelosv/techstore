@@ -2556,26 +2556,89 @@ async function renderPromos() {
     <div class="kpi"><span class="k-label">Descuento otorgado</span><b>${money(totalDesc)}</b></div>
     <div class="kpi"><span class="k-label">De bienvenida</span><b>${state.promos.filter((p) => p.kind === 'bienvenida').length}</b></div>`;
 
-  $('#promoTable').querySelector('tbody').innerHTML = state.promos
-    .map((p) => {
-      const vencida = p.ends_at && new Date(p.ends_at) < new Date();
-      const estado = !p.active ? 'cancelado' : vencida ? 'pendiente_pago' : 'entregado';
-      const etiqueta = !p.active ? 'Pausada' : vencida ? 'Vencida' : 'Activa';
-      return `<tr>
-        <td data-label="Código"><span class="mono">${esc(p.code)}</span>
-          <div class="small muted">${esc(p.name || '')}${p.owner_id ? ' · personal' : ''}</div></td>
-        <td data-label="Tipo" class="small">${p.scope === 'all' ? 'Todo el catálogo' : 'Productos elegidos'}${p.new_customers_only ? ' · solo nuevos' : ''}</td>
-        <td data-label="Valor" class="num">${p.discount_type === 'percent' ? p.discount_value + '%' : money(p.discount_value)}</td>
-        <td data-label="Vigencia" class="small">${p.ends_at ? fmtDate(p.ends_at) : 'sin fin'}</td>
-        <td data-label="Usos" class="num">${p.used_count}${p.max_uses ? ' / ' + p.max_uses : ''}</td>
-        <td data-label="Estado"><span class="badge ${estado}">${etiqueta}</span></td>
-        <td data-label="">
-          <button class="btn sm ghost" data-promo-toggle="${p.id}" data-active="${p.active}">${p.active ? 'Pausar' : 'Activar'}</button>
-        </td>
-      </tr>`;
-    })
-    .join('');
-  $('#promoEmpty').hidden = state.promos.length > 0;
+  if (!state.promoFilter) state.promoFilter = { estado: 'todas', tipo: 'todos', q: '' };
+  drawPromoFilters();
+  drawPromoRows();
+}
+
+/* ---- filtros y categorización de promos ---- */
+const PROMO_ESTADOS = [
+  ['todas', 'Todas'], ['activa', 'Activas'], ['vencida', 'Vencidas'],
+  ['pausada', 'Pausadas'], ['agotada', 'Agotadas'],
+];
+const PROMO_TIPOS = [['todos', 'Todos'], ['cupon', 'Cupones'], ['bienvenida', 'Bienvenida']];
+
+function promoEstado(p) {
+  if (!p.active) return 'pausada';
+  if (p.ends_at && new Date(p.ends_at) < new Date()) return 'vencida';
+  if (p.max_uses && Number(p.used_count || 0) >= Number(p.max_uses)) return 'agotada';
+  return 'activa';
+}
+
+function drawPromoFilters() {
+  const cont = document.getElementById('promoFilters');
+  if (!cont) return;
+  const f = state.promoFilter;
+  const cuenta = (e) => state.promos.filter((p) => e === 'todas' || promoEstado(p) === e).length;
+  cont.innerHTML = `
+    <div class="row wrap" style="gap:.35rem;margin-bottom:.45rem">
+      ${PROMO_ESTADOS.map(([k, l]) => `<button class="btn sm ${f.estado === k ? 'primary' : 'ghost'}" data-pe="${k}">${l} · ${cuenta(k)}</button>`).join('')}
+    </div>
+    <div class="row wrap" style="gap:.35rem;align-items:center">
+      ${PROMO_TIPOS.map(([k, l]) => `<button class="btn sm ${f.tipo === k ? 'primary' : 'ghost'}" data-pt="${k}">${l}</button>`).join('')}
+      <input id="promoSearch" placeholder="Buscar código o nombre…" style="max-width:220px" value="${esc(f.q)}">
+      <span class="small muted" id="promoCount"></span>
+    </div>`;
+}
+
+function drawPromoRows() {
+  const f = state.promoFilter || { estado: 'todas', tipo: 'todos', q: '' };
+  const q = (f.q || '').toLowerCase().trim();
+
+  const rows = state.promos.filter((p) => {
+    if (f.estado !== 'todas' && promoEstado(p) !== f.estado) return false;
+    if (f.tipo !== 'todos' && p.kind !== f.tipo) return false;
+    if (q && !(`${p.code || ''} ${p.name || ''}`.toLowerCase().includes(q))) return false;
+    return true;
+  });
+
+  const BADGE = { activa: ['entregado', 'Activa'], vencida: ['pendiente_pago', 'Vencida'], pausada: ['cancelado', 'Pausada'], agotada: ['pendiente_pago', 'Agotada'] };
+
+  $('#promoTable').querySelector('tbody').innerHTML = rows.map((p) => {
+    const est = promoEstado(p);
+    const [cls, etiqueta] = BADGE[est];
+    return `<tr>
+      <td data-label="Código"><span class="mono">${esc(p.code)}</span>
+        <div class="small muted">${esc(p.name || '')}${p.owner_id ? ' · personal' : ''}</div></td>
+      <td data-label="Tipo" class="small">
+        <span class="badge ${p.kind === 'bienvenida' ? 'pagado' : ''}">${p.kind === 'bienvenida' ? 'Bienvenida' : 'Cupón'}</span>
+        <div class="muted">${p.scope === 'all' ? 'Todo el catálogo' : 'Productos elegidos'}${p.new_customers_only ? ' · solo nuevos' : ''}</div></td>
+      <td data-label="Valor" class="num">${p.discount_type === 'percent' ? p.discount_value + '%' : money(p.discount_value)}</td>
+      <td data-label="Vigencia" class="small">${p.ends_at ? fmtDate(p.ends_at) : 'sin fin'}</td>
+      <td data-label="Usos" class="num">${p.used_count}${p.max_uses ? ' / ' + p.max_uses : ''}</td>
+      <td data-label="Estado"><span class="badge ${cls}">${etiqueta}</span></td>
+      <td data-label="">
+        <button class="btn sm ghost" data-promo-toggle="${p.id}" data-active="${p.active}">${p.active ? 'Pausar' : 'Activar'}</button>
+      </td>
+    </tr>`;
+  }).join('');
+
+  const cnt = document.getElementById('promoCount');
+  if (cnt) cnt.textContent = `${rows.length} de ${state.promos.length} promociones`;
+  $('#promoEmpty').hidden = rows.length > 0;
+}
+
+const promoFiltersBox = document.getElementById('promoFilters');
+if (promoFiltersBox) {
+  promoFiltersBox.addEventListener('click', (e) => {
+    const pe = e.target.closest('[data-pe]');
+    const pt = e.target.closest('[data-pt]');
+    if (pe) { state.promoFilter.estado = pe.dataset.pe; drawPromoFilters(); drawPromoRows(); }
+    if (pt) { state.promoFilter.tipo = pt.dataset.pt; drawPromoFilters(); drawPromoRows(); }
+  });
+  promoFiltersBox.addEventListener('input', (e) => {
+    if (e.target.id === 'promoSearch') { state.promoFilter.q = e.target.value; drawPromoRows(); }
+  });
 }
 
 $('#promoTable').addEventListener('click', async (e) => {
