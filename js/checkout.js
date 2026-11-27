@@ -165,6 +165,34 @@ promoInput.addEventListener('input', () => {
   }
 });
 
+/* ---- cupones disponibles del usuario (desplegable) ---- */
+(async () => {
+  try {
+    const { data: { user } } = await sb.auth.getUser();
+    if (!user) return;
+    const { data } = await sb.rpc('ts_promo_options', {
+      p_items: items.map((i) => ({ product_id: i.id, qty: i.qty })),
+      p_uid: user.id,
+    });
+    const opts = Array.isArray(data) ? data : [];
+    if (!opts.length) return;
+    const sel = document.getElementById('cPromoPick');
+    const wrap = document.getElementById('promoPickWrap');
+    if (!sel || !wrap) return;
+    sel.innerHTML = '<option value="">— elegí un cupón —</option>' + opts.map((o) => {
+      const val = o.discount_type === 'percent' ? `${o.discount_value}%` : money(o.discount_value);
+      const vence = o.ends_at ? ` · vence ${new Date(o.ends_at).toLocaleDateString('es-SV')}` : '';
+      return `<option value="${esc(o.code)}">${esc(o.code)} · ${val}${vence}</option>`;
+    }).join('');
+    wrap.hidden = false;
+    sel.addEventListener('change', () => {
+      if (!sel.value) return;
+      promoInput.value = sel.value;
+      document.getElementById('promoApply').click();
+    });
+  } catch (_) { /* sin sesión o sin cupones: queda el campo manual */ }
+})();
+
 document.getElementById('promoApply').addEventListener('click', async () => {
   const code = promoInput.value.trim();
   if (!code) return toast('Escribe un código', 'err');
