@@ -174,19 +174,37 @@ promoInput.addEventListener('input', () => {
       p_items: items.map((i) => ({ product_id: i.id, qty: i.qty })),
       p_uid: user.id,
     });
-    const opts = Array.isArray(data) ? data : [];
-    if (!opts.length) return;
+    const todas = Array.isArray(data) ? data : [];
+    if (!todas.length) return;
+
+    // El cupón de bienvenida es un regalo: se aplica solo, sin elegir nada.
+    const auto = todas.find((o) => o.auto === true);
+    const elegibles = todas.filter((o) => o.auto !== true);
+
+    if (auto) {
+      promoInput.value = auto.code;
+      document.getElementById('promoApply').click();
+      const aviso = document.getElementById('promoAuto');
+      if (aviso) {
+        aviso.hidden = false;
+        aviso.innerHTML = `🎁 <b>Se aplicó tu cupón de bienvenida</b> · ${esc(auto.message || '')}`;
+      }
+    }
+
     const sel = document.getElementById('cPromoPick');
     const wrap = document.getElementById('promoPickWrap');
+    const none = document.getElementById('promoNone');
+    if (none) none.hidden = true;
+
     if (!sel || !wrap) return;
-    sel.innerHTML = '<option value="">— elegí un cupón —</option>' + opts.map((o) => {
+    if (!elegibles.length) { wrap.hidden = true; return; }
+
+    sel.innerHTML = '<option value="">— elegí una promo —</option>' + elegibles.map((o) => {
       const desc = o.discount ? ` (−${money(o.discount)})` : '';
       const nom = o.name ? ` · ${o.name}` : '';
       return `<option value="${esc(o.code)}">${esc(o.code)}${esc(nom)} · ${esc(o.message || '')}${desc}</option>`;
     }).join('');
     wrap.hidden = false;
-    const none = document.getElementById('promoNone');
-    if (none) none.hidden = true;
     sel.addEventListener('change', () => {
       if (!sel.value) return;
       promoInput.value = sel.value;
