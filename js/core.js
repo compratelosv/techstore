@@ -220,7 +220,6 @@ export async function mountHeader({ active = '' } = {}) {
         <a href="index.html" class="${active === 'home' ? 'active' : ''}">Tienda</a>
         <a href="index.html#catalogo" class="${active === 'catalog' ? 'active' : ''}">Catálogo</a>
         <a href="cuenta.html" class="${active === 'account' ? 'active' : ''}">${user ? 'Mi cuenta' : 'Ingresar'}</a>
-        <a href="admin.html" class="nav-admin">Panel</a>
       </nav>
       <a class="cart-link" href="carrito.html" aria-label="Carrito">
         <span>Carrito</span><b data-cart-count>${count || ''}</b>

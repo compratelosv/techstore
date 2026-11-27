@@ -1,5 +1,5 @@
 /* fiscal.js — configuración fiscal y estado de facturación electrónica */
-import { sb, esc, toast, errMessage } from './core.js?v=3b15e8e6';
+import { sb, esc, toast, errMessage } from './core.js?v=828d81de';
 
 const $ = (s) => document.querySelector(s);
 let cfg = null;

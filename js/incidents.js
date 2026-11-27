@@ -1,5 +1,5 @@
 /* incidents.js — contingencias por daño antes de la entrega */
-import { sb, money, esc, toast, errMessage, fmtDate, getUser, openDrawerUI, closeDrawerUI } from './core.js?v=3b15e8e6';
+import { sb, money, esc, toast, errMessage, fmtDate, getUser, openDrawerUI, closeDrawerUI } from './core.js?v=828d81de';
 
 export const SEV = {
   leve: 'Leve (solo estético)',

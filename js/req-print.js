@@ -1,5 +1,5 @@
 /* req-print.js — documento imprimible de la requisición */
-import { sb, money, esc, errMessage } from './core.js?v=3b15e8e6';
+import { sb, money, esc, errMessage } from './core.js?v=828d81de';
 
 const STATUS = {
   borrador: 'Borrador', solicitada: 'Por aprobar', aprobada: 'Aprobada', rechazada: 'Rechazada',

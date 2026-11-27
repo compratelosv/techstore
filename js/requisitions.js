@@ -1,5 +1,5 @@
 /* requisitions.js — requisiciones de compra y servicios con aprobación del CEO */
-import { sb, money, esc, toast, errMessage, getUser, openDrawerUI, closeDrawerUI } from './core.js?v=3b15e8e6';
+import { sb, money, esc, toast, errMessage, getUser, openDrawerUI, closeDrawerUI } from './core.js?v=828d81de';
 
 export const RQ_STATUS = {
   borrador: 'Borrador',

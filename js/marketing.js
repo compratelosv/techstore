@@ -1,5 +1,5 @@
 /* marketing.js — módulo Marketing: redes, calendario editorial, contenido y métricas */
-import { sb, money, esc, toast, errMessage, getUser, openDrawerUI, closeDrawerUI } from './core.js?v=3b15e8e6';
+import { sb, money, esc, toast, errMessage, getUser, openDrawerUI, closeDrawerUI } from './core.js?v=828d81de';
 
 /* ---------------- constantes ---------------- */
 export const NETS = {

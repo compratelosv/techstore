@@ -1,5 +1,5 @@
 /* product-label.js — etiqueta de anaquel con EAN-13 escaneable */
-import { sb, money, esc, toast, errMessage, getUser } from './core.js?v=3b15e8e6';
+import { sb, money, esc, toast, errMessage, getUser } from './core.js?v=828d81de';
 
 const host = document.getElementById('labelHost');
 const sku = new URLSearchParams(location.search).get('sku');

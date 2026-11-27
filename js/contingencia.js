@@ -1,5 +1,5 @@
 /* contingencia.js — el cliente elige cómo resolvemos el daño */
-import { sb, esc, money } from './core.js?v=3b15e8e6';
+import { sb, esc, money } from './core.js?v=828d81de';
 
 const app = document.getElementById('app');
 const token = new URLSearchParams(location.search).get('t');

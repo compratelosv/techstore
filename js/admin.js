@@ -1,5 +1,5 @@
 /* admin.js — shell del panel: pedidos, preparación e inventario */
-import { sb, money, esc, toast, fmtDate, errMessage, STATUS_LABEL, getUser, loadCurrency, loadTheme, applyTheme, getCurrency, openDrawerUI, closeDrawerUI, initDrawerDismiss } from './core.js?v=3b15e8e6';
+import { sb, money, esc, toast, fmtDate, errMessage, STATUS_LABEL, getUser, loadCurrency, loadTheme, applyTheme, getCurrency, openDrawerUI, closeDrawerUI, initDrawerDismiss } from './core.js?v=828d81de';
 import { initPos, scanOnce, scanStream, stopScan, scanFeedback } from './pos.js?v=556f86f2';
 import { Scanner } from './scanner.js?v=90ef2e67';
 import { initMarketing, loadMarketing, renderMarketing, renderEditorial, renderContent, renderMetrics } from './marketing.js?v=7ad6e894';

@@ -1,5 +1,5 @@
 /* ticket.js — ticket de 80 mm del documento emitido en caja */
-import { sb, money, esc, errMessage } from './core.js?v=3b15e8e6';
+import { sb, money, esc, errMessage } from './core.js?v=828d81de';
 
 const el = document.getElementById('ticket');
 const docId = new URLSearchParams(location.search).get('d');
