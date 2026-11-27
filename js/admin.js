@@ -2230,8 +2230,7 @@ async function openCustomer(userId) {
 
   const p = data.profile || {};
   // los datos fiscales no vienen en el detalle: se leen aparte
-  const { data: extra } = await sb.from('ts_profiles')
-    .select('dui,nit,nrc,address,source').eq('id', userId).maybeSingle();
+  const { data: extra } = await sb.rpc('ts_customer_extra', { p_user_id: userId });
   Object.assign(p, extra || {});
   const orders = data.orders || [];
   const notes = data.notes || [];
