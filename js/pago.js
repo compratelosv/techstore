@@ -55,37 +55,93 @@ function summaryMarkup() {
     </div>`;
 }
 
-function renderPay() {
+async function renderPay() {
+  const { data: transfer } = await sb.from('ts_payment_info').select('*').eq('id', 1).maybeSingle();
+  const t = transfer || {};
+  const hayTransf = !!(t.activo && t.cuenta);
+
   view.innerHTML = `
     <h1 style="margin-bottom:.3rem">Completar pago</h1>
-    <p class="muted" style="margin-top:0">Pedido creado. Falta confirmar el pago para que entre a preparación.</p>
+    <p class="muted" style="margin-top:0">Pedido creado. Elegí cómo querés pagar.</p>
     ${summaryMarkup()}
     <div class="panel" style="margin-top:1rem">
-      <h3>Pago con tarjeta</h3>
-      <p class="small muted">
-        ${MODO_PAGO === 'simulado'
-          ? 'Este entorno usa <b>pago simulado</b>: no se cobra dinero real y no se piden datos de tarjeta. La confirmación siempre pasa por la misma función del servidor.'
-          : 'Te llevaremos a la pasarela de pago segura para completar la compra.'}
-      </p>
-      <button class="btn primary block" id="payBtn">Pagar ${money(order.total)}${MODO_PAGO === 'simulado' ? ' (simulado)' : ''}</button>
-      <a class="btn ghost block" href="cuenta.html" style="margin-top:.5rem">Pagar más tarde</a>
+      <h3>¿Cómo querés pagar?</h3>
+      <div class="row wrap" style="gap:.4rem;margin:.7rem 0">
+        <button class="btn sm ghost" data-method="tarjeta">💳 Tarjeta</button>
+        <button class="btn sm ghost" data-method="efectivo">💵 Efectivo al recibir</button>
+        <button class="btn sm ghost" data-method="transferencia" ${hayTransf ? '' : 'disabled title="Aún no hay datos de transferencia cargados"'}>🏦 Transferencia</button>
+      </div>
+      <div id="payPanel"></div>
     </div>`;
 
-  document.getElementById('payBtn').onclick = async (e) => {
-    const btn = e.currentTarget;
-    btn.disabled = true;
-    btn.textContent = 'Confirmando…';
-    const r = await cobrarPedido(sb, order);
-    if (r.tipo === 'error') {
-      toast(r.mensaje, 'err');
-      btn.disabled = false;
-      btn.textContent = `Pagar ${money(order.total)}`;
-      return;
-    }
-    if (r.tipo === 'redirigir') { location.href = r.url; return; }
-    order = r.order;
-    renderSuccess();
+  const panel = document.getElementById('payPanel');
+  const btns = Array.from(view.querySelectorAll('[data-method]'));
+  const sel = (m) => btns.forEach((b) => b.classList.toggle('primary', b.dataset.method === m));
+
+  const pintarTarjeta = () => {
+    sel('tarjeta');
+    panel.innerHTML = `
+      <p class="small muted">${MODO_PAGO === 'simulado'
+        ? 'Entorno de <b>pago simulado</b>: no se cobra dinero real ni se piden datos de tarjeta.'
+        : 'Te llevamos a la pasarela segura de Wompi para pagar con tarjeta.'}</p>
+      <button class="btn primary block" id="payBtn">Pagar ${money(order.total)}</button>`;
+    document.getElementById('payBtn').onclick = async (e) => {
+      const btn = e.currentTarget;
+      btn.disabled = true; btn.textContent = 'Confirmando…';
+      const r = await cobrarPedido(sb, order);
+      if (r.tipo === 'error') { toast(r.mensaje, 'err'); btn.disabled = false; btn.textContent = `Pagar ${money(order.total)}`; return; }
+      if (r.tipo === 'redirigir') { location.href = r.url; return; }
+      order = r.order; renderSuccess();
+    };
   };
+
+  const pintarEfectivo = () => {
+    sel('efectivo');
+    panel.innerHTML = `
+      <p class="small muted">Pagás <b>en el momento de la entrega</b>. Tu pedido entra a preparación ahora y el
+      repartidor o el punto de retiro cobra al entregarte.</p>
+      <button class="btn primary block" id="cashBtn">Confirmar pedido · pago al recibir</button>`;
+    document.getElementById('cashBtn').onclick = async (e) => {
+      const btn = e.currentTarget; btn.disabled = true; btn.textContent = 'Confirmando…';
+      const { error } = await sb.rpc('ts_confirm_payment', {
+        p_order_id: order.id, p_provider: 'efectivo', p_reference: `CONTRA-ENTREGA-${order.code}`,
+      });
+      if (error) { toast(errMessage(error), 'err'); btn.disabled = false; btn.textContent = 'Confirmar pedido · pago al recibir'; return; }
+      toast('Pedido confirmado · se cobra al entregar');
+      renderSuccess();
+    };
+  };
+
+  const pintarTransferencia = () => {
+    sel('transferencia');
+    panel.innerHTML = `
+      <p class="small muted">Hacé la transferencia y <b>tu pedido queda reservado</b>. Confirmamos el pago
+      cuando lo vemos en la cuenta y ahí entra a preparación.</p>
+      <div class="panel" style="margin:.6rem 0;background:var(--bg-2,#f6f8fb)">
+        <p class="small" style="line-height:2;margin:0">
+          Banco: <b>${esc(t.banco || '—')}</b><br>
+          Titular: <b>${esc(t.titular || '—')}</b><br>
+          ${t.tipo_cuenta ? `Tipo: <b>${esc(t.tipo_cuenta)}</b><br>` : ''}
+          Cuenta: <b class="mono">${esc(t.cuenta || '—')}</b><br>
+          Monto exacto: <b>${money(order.total)}</b>
+        </p>
+      </div>
+      ${t.qr_url ? `<img src="${esc(t.qr_url)}" alt="QR para transferir" style="max-width:180px;display:block;margin:.4rem auto">` : ''}
+      ${t.instrucciones ? `<p class="small muted">${esc(t.instrucciones)}</p>` : ''}
+      <p class="small"><b>Importante:</b> poné el código <b class="mono">${esc(order.code)}</b> en el concepto
+      de la transferencia para poder identificarla.</p>
+      <a class="btn ghost block" href="cuenta.html">Ya transferí · ver mi pedido</a>`;
+  };
+
+  btns.forEach((b) => {
+    b.onclick = () => {
+      if (b.dataset.method === 'tarjeta') return pintarTarjeta();
+      if (b.dataset.method === 'efectivo') return pintarEfectivo();
+      if (b.dataset.method === 'transferencia') return pintarTransferencia();
+    };
+  });
+
+  pintarTarjeta();
 }
 
 function renderSuccess() {
