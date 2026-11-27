@@ -79,6 +79,13 @@ export function initPos(deps) {
   document.getElementById('posDocType')?.addEventListener('change', syncDocFields);
   document.getElementById('posMethod')?.addEventListener('change', syncPayFields);
   document.getElementById('posCustomerFind')?.addEventListener('click', findCustomer);
+
+  // sugerencias predictivas mientras se escribe (sin toasts molestos)
+  let custTimer = null;
+  document.getElementById('posCustomerSearch')?.addEventListener('input', () => {
+    clearTimeout(custTimer);
+    custTimer = setTimeout(() => findCustomer({ silent: true }), 280);
+  });
   document.getElementById('posCustomerSearch')?.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') { e.preventDefault(); findCustomer(); }
   });
@@ -583,26 +590,34 @@ function pickCustomer(c) {
   document.getElementById('posCustomerResults')?.remove();
 }
 
-async function findCustomer() {
+async function findCustomer(opts = {}) {
+  const silent = opts.silent === true;
   const input = document.getElementById('posCustomerSearch');
   const q = (input?.value || '').trim();
-  if (!q) return api.toast('Escribe telefono, NIT, correo o nombre', 'err');
+  if (!q) { document.getElementById('posCustomerResults')?.remove(); if (!silent) api.toast('Escribe telefono, NIT, correo o nombre', 'err'); return; }
+  if (q.length < 2) { document.getElementById('posCustomerResults')?.remove(); return; }
 
   const { data, error } = await api.sb.rpc('ts_pos_customer_find', { p_q: q });
-  if (error) return api.toast(api.errMessage(error), 'err');
-  const list = data || [];
-  if (!list.length) return api.toast('No hay cliente con ese dato. Usa "Nuevo".', 'err');
-  if (list.length === 1) return pickCustomer(list[0]);
+  if (error) { if (!silent) api.toast(api.errMessage(error), 'err'); return; }
+  const list = Array.isArray(data) ? data : [];
+  if (!list.length) {
+    document.getElementById('posCustomerResults')?.remove();
+    if (!silent) api.toast('No hay cliente con ese dato. Usa "Nuevo".', 'err');
+    return;
+  }
+  if (list.length === 1 && !silent) return pickCustomer(list[0]);
 
   document.getElementById('posCustomerResults')?.remove();
   const box = document.createElement('div');
   box.id = 'posCustomerResults';
   box.style.cssText = 'margin:.4rem 0;display:flex;flex-direction:column;gap:.3rem';
-  box.innerHTML = list.map((c) => `
+  box.innerHTML = list.slice(0, 6).map((c) => `
     <button type="button" class="btn sm ghost" data-pick="${c.id}" style="justify-content:flex-start;text-align:left">
-      ${api.esc(c.name)}${c.nit ? ' · ' + api.esc(c.nit) : ''}${c.phone ? ' · ' + api.esc(c.phone) : ''}
+      <b>${api.esc(c.name)}</b>${c.nit ? ' · ' + api.esc(c.nit) : ''}${c.phone ? ' · ' + api.esc(c.phone) : ''}${c.email ? ' · ' + api.esc(c.email) : ''}
+      <span class="small muted" style="margin-left:.4rem">${c.origen === 'mostrador' ? '· mostrador' : c.origen === 'admin' ? '· creado por admin' : '· web'}</span>
     </button>`).join('');
-  document.getElementById('posCustomerHint').after(box);
+  const hint = document.getElementById('posCustomerHint');
+  if (hint) hint.after(box);
   box.onclick = (e) => {
     const b = e.target.closest('[data-pick]');
     if (!b) return;
