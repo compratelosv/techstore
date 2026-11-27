@@ -539,6 +539,17 @@ async function charge() {
   }
 
   api.toast(`Venta ${order.code} cobrada · ${api.money(order.total)}`);
+
+  // Entrega inmediata en mostrador: el pedido queda cerrado como entregado en tienda.
+  const entrega = document.getElementById('posDelivery')?.value || 'ahora';
+  if (entrega === 'ahora') {
+    for (const st of ['en_preparacion', 'listo', 'entregado']) {
+      const { error: stErr } = await api.sb.rpc('ts_set_order_status', {
+        p_order_id: order.id, p_status: st, p_note: 'Venta en mostrador · entregado en tienda',
+      });
+      if (stErr) { api.toast(`No se pudo cerrar como entregado: ${api.errMessage(stErr)}`, 'err'); break; }
+    }
+  }
   const usedPromo = promo?.code;
   cart = [];
   promo = null;
