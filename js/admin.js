@@ -2229,6 +2229,10 @@ async function openCustomer(userId) {
   if (error) return toast(errMessage(error), 'err');
 
   const p = data.profile || {};
+  // los datos fiscales no vienen en el detalle: se leen aparte
+  const { data: extra } = await sb.from('ts_profiles')
+    .select('dui,nit,nrc,address,source').eq('id', userId).maybeSingle();
+  Object.assign(p, extra || {});
   const orders = data.orders || [];
   const notes = data.notes || [];
   const addrs = data.addresses || [];
