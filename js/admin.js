@@ -684,6 +684,12 @@ async function openOrder(id) {
     .eq('order_id', id)
     .order('created_at', { ascending: true });
 
+  const { data: movs } = await sb
+    .from('ts_inventory_movements')
+    .select('*')
+    .eq('order_id', id)
+    .order('created_at', { ascending: true });
+
   const addr = order.fulfillment === 'envio'
     ? `${esc(order.ship_line1 || '')}${order.ship_line2 ? ', ' + esc(order.ship_line2) : ''}<br>${esc(order.ship_city || '')}, ${esc(order.ship_department || '')}`
     : 'Retiro en tienda (sin costo de envío)';
@@ -736,6 +742,26 @@ async function openOrder(id) {
         <div class="pos-total"><span>Total</span><span>${money(order.total)}</span></div>
       </div>
 
+      ${(movs || []).length ? `<div class="panel" style="margin-bottom:.8rem">
+        <h3>Inventario · movimientos del pedido</h3>
+        <table class="table">
+          <thead><tr><th>Producto</th><th>Movimiento</th><th class="num">Cantidad</th><th>Motivo</th></tr></thead>
+          <tbody>
+          ${(movs || []).map((m) => {
+            const pr = (state.products || []).find((x) => x.id === m.product_id);
+            const nombre = pr ? pr.name : (m.note || 'producto');
+            return `<tr>
+              <td data-label="Producto">${esc(nombre)}</td>
+              <td data-label="Movimiento"><span class="badge ${m.delta > 0 ? 'pagado' : 'cancelado'}">${m.delta > 0 ? 'Entrada' : 'Salida'}</span></td>
+              <td class="num" data-label="Cantidad">${m.delta > 0 ? '+' : ''}${m.delta}</td>
+              <td data-label="Motivo" class="small">${esc(m.reason || '')} · ${fmtDate(m.created_at)}</td>
+            </tr>`;
+          }).join('')}
+          </tbody>
+        </table>
+        <p class="small muted" style="margin:.5rem 0 0">Al cancelar o reembolsar, cada unidad vuelve al inventario y queda registrada acá.</p>
+      </div>` : ''}
+
       <div class="panel">
         <h3>Historial</h3>
         ${(events || []).map((ev) => `
@@ -750,8 +776,18 @@ async function openOrder(id) {
       ${NEXT_ACTION[order.status]
         ? `<button class="btn" data-advance="${order.status}">${NEXT_ACTION[order.status].label}</button>`
         : ''}
-      ${['pagado', 'en_preparacion', 'listo'].includes(order.status)
-        ? `<button class="btn danger" data-cancel>Cancelar pedido</button>` : ''}
+      ${(() => {
+        const cancelables = ['pendiente_pago', 'pagado', 'en_preparacion', 'listo', 'en_ruta'];
+        const unidades = items.reduce((a, i) => a + Number(i.qty || 0), 0);
+        const devuelve = ['pagado', 'en_preparacion', 'listo', 'en_ruta'].includes(order.status);
+        if (cancelables.includes(order.status)) {
+          return `<button class="btn danger" data-cancel>Cancelar pedido${devuelve && unidades ? ` · devuelve ${unidades} al stock` : ''}</button>`;
+        }
+        if (order.status === 'entregado') {
+          return `<button class="btn danger" data-refund>Reembolsar${unidades ? ` · devuelve ${unidades} al stock` : ''}</button>`;
+        }
+        return '';
+      })()}
       <button class="btn ghost" id="dClose2">Cerrar</button>`,
   });
 
@@ -782,13 +818,28 @@ async function openOrder(id) {
       openOrder(order.id);
     }
 
-    if (cancel) {
-      if (!confirm(`¿Cancelar el pedido ${order.code}? Se devuelve el inventario si ya estaba cobrado.`)) return;
+    const refund = e.target.closest('[data-refund]');
+
+    if (cancel || refund) {
+      const devuelve = ['pagado', 'en_preparacion', 'listo', 'en_ruta'].includes(order.status);
+      const unidades = items.reduce((a, i) => a + Number(i.qty || 0), 0);
+      const detalle = devuelve && unidades
+        ? `\n\nSe devolverán ${unidades} unidad(es) al inventario y quedará el movimiento registrado.`
+        : '\n\nEste pedido no descontó inventario: no hay unidades que devolver.';
+      const accion = refund ? 'Reembolsar' : 'Cancelar';
+      if (!confirm(`¿${accion} el pedido ${order.code}?` + detalle)) return;
+      const b2 = e.target;
+      b2.disabled = true;
       const { error } = await sb.rpc('ts_set_order_status', {
-        p_order_id: order.id, p_status: 'cancelado', p_note: 'Cancelado desde el panel',
+        p_order_id: order.id,
+        p_status: refund ? 'reembolsado' : 'cancelado',
+        p_note: `${accion} desde el panel`,
       });
+      b2.disabled = false;
       if (error) return toast(errMessage(error), 'err');
-      toast('Pedido cancelado');
+      toast(devuelve && unidades
+        ? `Pedido ${refund ? 'reembolsado' : 'cancelado'} · ${unidades} unidad(es) devueltas al stock`
+        : `Pedido ${refund ? 'reembolsado' : 'cancelado'}`);
       await loadOrders();
       renderOrders();
       renderKanban();
