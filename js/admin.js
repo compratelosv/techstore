@@ -2591,6 +2591,44 @@ function openPurchaseForm() {
 }
 
 /* ---------------- promociones ---------------- */
+/* ---- borrar pedidos de prueba (solo admin) ---- */
+async function wipeOrders() {
+  const n = (state.orders || []).length;
+  if (!n) return toast('No hay pedidos para borrar');
+  if (!confirm(`Vas a borrar ${n} pedido(s) y todas sus entregas.\n\nEl stock se devuelve automáticamente y la acción queda en la auditoría.\n\nEsta operación NO se puede deshacer.`)) return;
+  const palabra = prompt('Escribe BORRAR PEDIDOS para confirmar:');
+  if (palabra === null) return;
+  if (palabra.trim().toUpperCase() !== 'BORRAR PEDIDOS') return toast('La confirmación no coincide: no se borró nada', 'err');
+  const motivo = prompt('Motivo (queda en la auditoría):', 'Limpieza de pruebas') || 'Limpieza de pruebas';
+
+  const { data, error } = await sb.rpc('ts_admin_wipe_orders', { p_confirmacion: palabra.trim().toUpperCase(), p_reason: motivo });
+  if (error) return toast(errMessage(error), 'err');
+
+  toast(`Borrados ${data.pedidos} pedidos · ${data.items} ítems · ${data.actas} actas`);
+  await loadOrders();
+  renderOrders();
+  renderKanban();
+  if (typeof renderDeliveries === 'function') renderDeliveries();
+}
+
+function injectWipeBtn() {
+  const view = document.getElementById('view-orders');
+  if (!view || document.getElementById('btnWipeOrders')) return;
+  const head = view.querySelector('.row') || view;
+  const b = document.createElement('button');
+  b.id = 'btnWipeOrders';
+  b.type = 'button';
+  b.className = 'btn sm danger';
+  b.style.marginLeft = 'auto';
+  b.textContent = '🗑 Borrar pedidos de prueba';
+  b.onclick = wipeOrders;
+  head.appendChild(b);
+}
+
+// aparece al entrar a la vista de pedidos
+document.addEventListener('click', () => setTimeout(injectWipeBtn, 400), true);
+window.addEventListener('hashchange', () => setTimeout(injectWipeBtn, 400));
+
 async function renderPromos() {
   if (state.profile?.role !== 'admin') {
     toast('Solo el administrador gestiona promociones', 'err');
