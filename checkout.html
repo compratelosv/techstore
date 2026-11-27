@@ -97,10 +97,11 @@
         <select id="cPromoPick">
           <option value="">— elegí un cupón —</option>
         </select>
-        <span class="small muted">Son los cupones de tu cuenta, con su vigencia.</span>
+        <span class="small muted">Solo se muestran los cupones asociados a tu cuenta.</span>
       </div>
-      <div class="field">
-        <label for="cPromo">Código (opcional)</label>
+      <p class="small muted" id="promoNone" style="margin:.3rem 0 0">No tenés cupones disponibles.</p>
+      <div class="field" style="display:none">
+        <label for="cPromo">Código</label>
         <div class="row" style="gap:.5rem">
           <input id="cPromo" placeholder="Ej. BIENVENIDA-A1B2C" autocomplete="off" style="flex:1">
           <button class="btn sm" type="button" id="promoApply">Aplicar</button>
@@ -135,6 +136,6 @@
 </main>
 
 <script src="vendor/supabase.js"></script>
-<script type="module" src="js/checkout.js?v=9faf6485"></script>
+<script type="module" src="js/checkout.js?v=79cc75d9"></script>
 </body>
 </html>

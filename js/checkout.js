@@ -185,6 +185,8 @@ promoInput.addEventListener('input', () => {
       return `<option value="${esc(o.code)}">${esc(o.code)}${esc(nom)} · ${esc(o.message || '')}${desc}</option>`;
     }).join('');
     wrap.hidden = false;
+    const none = document.getElementById('promoNone');
+    if (none) none.hidden = true;
     sel.addEventListener('change', () => {
       if (!sel.value) return;
       promoInput.value = sel.value;
