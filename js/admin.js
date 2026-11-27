@@ -2628,6 +2628,8 @@ function injectWipeBtn() {
 // aparece al entrar a la vista de pedidos
 document.addEventListener('click', () => setTimeout(injectWipeBtn, 400), true);
 window.addEventListener('hashchange', () => setTimeout(injectWipeBtn, 400));
+setTimeout(injectWipeBtn, 2500);
+setTimeout(injectWipeBtn, 6000);
 
 async function renderPromos() {
   if (state.profile?.role !== 'admin') {
