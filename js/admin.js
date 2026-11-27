@@ -2651,8 +2651,8 @@ function injectWipeBtn() {
 }
 
 // aparece al entrar a la vista de pedidos
-document.addEventListener('click', () => setTimeout(() => { injectWipeBtn(); renderPayInfo(); }, 400), true);
-window.addEventListener('hashchange', () => setTimeout(() => { injectWipeBtn(); renderPayInfo(); }, 400));
+document.addEventListener('click', () => setTimeout(() => { injectWipeBtn(); injectWipeQuotesBtn(); renderPayInfo(); }, 400), true);
+window.addEventListener('hashchange', () => setTimeout(() => { injectWipeBtn(); injectWipeQuotesBtn(); renderPayInfo(); }, 400));
 setTimeout(injectWipeBtn, 2500);
 setTimeout(injectWipeBtn, 6000);
 
@@ -2702,6 +2702,38 @@ async function renderPayInfo() {
     if (error) return toast(errMessage(error), 'err');
     toast('Datos de transferencia guardados');
   };
+}
+
+/* ---- borrar cotizaciones de prueba (solo admin) ---- */
+async function wipeQuotes() {
+  if (!confirm('Vas a borrar TODAS las cotizaciones y sus ítems.\n\nEsta operación NO se puede deshacer y queda en la auditoría.')) return;
+  const palabra = prompt('Escribe BORRAR COTIZACIONES para confirmar:');
+  if (palabra === null) return;
+  if (palabra.trim().toUpperCase() !== 'BORRAR COTIZACIONES') return toast('La confirmación no coincide: no se borró nada', 'err');
+  const motivo = prompt('Motivo (queda en la auditoría):', 'Limpieza de pruebas');
+  if (motivo === null) return;
+
+  const { data, error } = await sb.rpc('ts_admin_wipe_quotes', {
+    p_confirmacion: palabra.trim().toUpperCase(), p_reason: (motivo || 'Limpieza de pruebas'),
+  });
+  if (error) return toast(errMessage(error), 'err');
+  toast(`Borradas ${data.cotizaciones} cotizaciones · ${data.items} ítems`);
+  if (typeof renderQuotes === 'function') renderQuotes();
+}
+
+function injectWipeQuotesBtn() {
+  const btnNew = Array.from(document.querySelectorAll('button')).find((b) => /Nueva cotizaci/i.test(b.textContent));
+  if (!btnNew) return;
+  const cont = btnNew.parentElement;
+  if (!cont || cont.querySelector('#btnWipeQuotes')) return;
+  const b = document.createElement('button');
+  b.id = 'btnWipeQuotes';
+  b.type = 'button';
+  b.className = 'btn sm danger';
+  b.style.marginRight = '.4rem';
+  b.textContent = '🗑 Borrar cotizaciones de prueba';
+  b.onclick = wipeQuotes;
+  cont.insertBefore(b, btnNew);
 }
 
 async function renderPromos() {
