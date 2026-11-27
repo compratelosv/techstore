@@ -2191,6 +2191,28 @@ $('#btnRefreshCust').addEventListener('click', renderCustomers);
 
 /* guardar datos faltantes del cliente desde su ficha */
 document.addEventListener('click', async (e) => {
+  const del = e.target.closest('[data-del-customer]');
+  if (del) {
+    const email = del.dataset.email || '';
+    if (!confirm(`¿Eliminar definitivamente la cuenta de ${email}?\n\nSe borra el perfil y sus datos. No se puede deshacer.`)) return;
+    const conf = prompt(`Escribí el correo exacto para confirmar:\n${email}`);
+    if (conf === null) return;
+    if (conf.trim().toLowerCase() !== email.toLowerCase()) return toast('El correo no coincide: no se borró nada', 'err');
+    const motivo = prompt('Motivo del borrado (queda en la auditoría):', 'Limpieza de pruebas');
+    if (motivo === null) return;
+    if (!motivo || motivo.trim().length < 5) return toast('El motivo debe tener al menos 5 caracteres', 'err');
+    del.disabled = true;
+    const { error } = await sb.rpc('ts_admin_delete_account', {
+      p_user_id: del.dataset.delCustomer, p_confirmacion: conf.trim(), p_reason: motivo.trim(),
+    });
+    del.disabled = false;
+    if (error) return toast(errMessage(error), 'err');
+    toast('Cuenta eliminada y registrada en auditoría');
+    document.querySelector('[data-close-drawer]')?.click();
+    await renderCustomers();
+    return;
+  }
+
   const b = e.target.closest('[data-save-customer]');
   if (!b) return;
   b.disabled = true;
@@ -2279,6 +2301,9 @@ async function openCustomer(userId) {
               <input id="cu_address" value="${esc(p.address || '')}" placeholder="Calle, número, colonia, ciudad"></div>
             <button class="btn sm primary" type="button" data-save-customer="${userId}">Guardar datos</button>
             <p class="small muted" style="margin:.45rem 0 0">El NIT y el NRC son los que se usan para emitir factura (CCF).</p>
+            <hr style="margin:.9rem 0;border:0;border-top:1px solid var(--line,#e6e6e6)">
+            <button class="btn sm danger" type="button" data-del-customer="${userId}" data-email="${esc(p.email || '')}">🗑 Eliminar cliente (pruebas)</button>
+            <p class="small muted" style="margin:.35rem 0 0">Borra la cuenta y su perfil. Queda registrado en la auditoría con el motivo.</p>
           </div>
         </details>
       </div>
