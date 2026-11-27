@@ -710,7 +710,7 @@ async function openOrder(id) {
 
         <h3 style="margin-top:.9rem">Transportista a cargo</h3>
         <div class="field" style="margin:0">
-          <select id="ordCourier" data-order="${order.id}" ${['pagado', 'en_preparacion', 'en_ruta'].includes(order.status) ? '' : 'disabled'}>
+          <select id="ordCourier" data-order="${order.id}" ${['pagado', 'en_preparacion', 'listo', 'en_ruta'].includes(order.status) ? '' : 'disabled'}>
             <option value="">— Sin asignar —</option>
             ${(state.couriers || []).filter((c) => c.active).map((c) => `<option value="${c.id}" ${order.courier_id === c.id ? 'selected' : ''}>
               ${esc(c.full_name || c.email)}${c.assigned ? ` · ${c.assigned} en curso` : ''}
