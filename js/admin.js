@@ -1198,6 +1198,7 @@ function openActa(orderId, btn) {
       const uid = state.profile?.id || null;
       const stamp = Date.now();
       let photo_path = null, signature_path = null;
+      let avisoFirma = null;
 
       // firma: si el canvas no responde, no bloqueamos la entrega
       try {
@@ -1212,7 +1213,7 @@ function openActa(orderId, btn) {
           signature_path = sigPath;
         }
       } catch (eFirma) {
-        say('Aviso: se guardó la entrega sin firma (' + (eFirma.message || eFirma) + ')');
+        avisoFirma = 'No se pudo adjuntar la firma (' + (eFirma.message || eFirma) + ')';
       }
 
       // foto
@@ -1243,6 +1244,7 @@ function openActa(orderId, btn) {
       }
 
       toast('Entrega registrada con acta');
+      if (avisoFirma) say(avisoFirma);
       document.querySelector('[data-close-drawer]')?.click();
       if (typeof renderDeliveries === 'function') { try { await renderDeliveries(); } catch {} }
       // volver siempre a la lista del transportista (hash real: #entregas)
