@@ -2651,10 +2651,58 @@ function injectWipeBtn() {
 }
 
 // aparece al entrar a la vista de pedidos
-document.addEventListener('click', () => setTimeout(injectWipeBtn, 400), true);
-window.addEventListener('hashchange', () => setTimeout(injectWipeBtn, 400));
+document.addEventListener('click', () => setTimeout(() => { injectWipeBtn(); renderPayInfo(); }, 400), true);
+window.addEventListener('hashchange', () => setTimeout(() => { injectWipeBtn(); renderPayInfo(); }, 400));
 setTimeout(injectWipeBtn, 2500);
 setTimeout(injectWipeBtn, 6000);
+
+/* ---- datos para transferencias (Configuración · Cobros) ---- */
+async function renderPayInfo() {
+  const box = document.getElementById('payInfoBox');
+  if (!box || box.dataset.ready === '1') return;
+  const { data } = await sb.from('ts_payment_info').select('*').eq('id', 1).maybeSingle();
+  const t = data || {};
+  box.dataset.ready = '1';
+  const val = (id) => (document.getElementById(id)?.value || '').trim() || null;
+  box.innerHTML = `
+    <div class="row" style="gap:.5rem;flex-wrap:wrap">
+      <div class="field" style="flex:1;min-width:150px"><label>Banco</label>
+        <input id="pi_banco" value="${esc(t.banco || '')}" placeholder="Banco Agrícola"></div>
+      <div class="field" style="flex:1;min-width:150px"><label>Titular</label>
+        <input id="pi_titular" value="${esc(t.titular || '')}" placeholder="Nombre o razón social"></div>
+    </div>
+    <div class="row" style="gap:.5rem;flex-wrap:wrap">
+      <div class="field" style="flex:1;min-width:130px"><label>Tipo de cuenta</label>
+        <select id="pi_tipo"><option value="">—</option>
+          <option value="Ahorros" ${t.tipo_cuenta === 'Ahorros' ? 'selected' : ''}>Ahorros</option>
+          <option value="Corriente" ${t.tipo_cuenta === 'Corriente' ? 'selected' : ''}>Corriente</option>
+        </select></div>
+      <div class="field" style="flex:1;min-width:150px"><label>Número de cuenta</label>
+        <input id="pi_cuenta" class="mono" value="${esc(t.cuenta || '')}" placeholder="000-000000-0"></div>
+    </div>
+    <div class="field"><label>URL del QR (opcional)</label>
+      <input id="pi_qr" value="${esc(t.qr_url || '')}" placeholder="https://..."></div>
+    <div class="field"><label>Instrucciones (opcional)</label>
+      <input id="pi_inst" value="${esc(t.instrucciones || '')}" placeholder="Ej: enviá el comprobante por WhatsApp"></div>
+    <label class="row" style="align-items:center;gap:.5rem">
+      <input type="checkbox" id="pi_activo" ${t.activo ? 'checked' : ''} style="width:auto;margin:0">
+      <span class="small">Mostrar transferencia como método de pago</span>
+    </label>
+    <button class="btn sm primary" type="button" id="pi_save" style="margin-top:.6rem">Guardar datos</button>`;
+
+  document.getElementById('pi_save').onclick = async (e) => {
+    const b = e.currentTarget; b.disabled = true; b.textContent = 'Guardando…';
+    const { error } = await sb.from('ts_payment_info').update({
+      banco: val('pi_banco'), titular: val('pi_titular'), tipo_cuenta: val('pi_tipo'),
+      cuenta: val('pi_cuenta'), qr_url: val('pi_qr'), instrucciones: val('pi_inst'),
+      activo: document.getElementById('pi_activo').checked,
+      updated_at: new Date().toISOString(),
+    }).eq('id', 1);
+    b.disabled = false; b.textContent = 'Guardar datos';
+    if (error) return toast(errMessage(error), 'err');
+    toast('Datos de transferencia guardados');
+  };
+}
 
 async function renderPromos() {
   if (state.profile?.role !== 'admin') {
