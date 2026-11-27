@@ -1245,9 +1245,9 @@ function openActa(orderId, btn) {
       toast('Entrega registrada con acta');
       document.querySelector('[data-close-drawer]')?.click();
       if (typeof renderDeliveries === 'function') { try { await renderDeliveries(); } catch {} }
-      // volver siempre a la lista del transportista
-      document.querySelector('[data-nav="reparto"]')?.click();
-      location.hash = '#reparto';
+      // volver siempre a la lista del transportista (hash real: #entregas)
+      document.querySelector('[data-nav="deliveries"]')?.click();
+      location.hash = '#entregas';
     } catch (err) {
       say('No se pudo guardar: ' + (err.message || err));
     } finally {
