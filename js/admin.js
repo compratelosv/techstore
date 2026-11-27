@@ -2189,6 +2189,36 @@ document.addEventListener('click', (e) => {
 });
 $('#btnRefreshCust').addEventListener('click', renderCustomers);
 
+/* guardar datos faltantes del cliente desde su ficha */
+document.addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-save-customer]');
+  if (!b) return;
+  b.disabled = true;
+  const val = (id) => (document.getElementById(id)?.value || '').trim() || null;
+  const payload = {
+    full_name: val('cu_name'),
+    phone: val('cu_phone'),
+    dui: val('cu_dui'),
+    nit: val('cu_nit'),
+    nrc: val('cu_nrc'),
+    address: val('cu_address'),
+  };
+  const { error } = await sb.rpc('ts_customer_update', {
+    p_user_id: b.dataset.saveCustomer,
+    p_full_name: payload.full_name,
+    p_phone: payload.phone,
+    p_dui: payload.dui,
+    p_nit: payload.nit,
+    p_nrc: payload.nrc,
+    p_address: payload.address,
+  });
+  b.disabled = false;
+  if (error) return toast(errMessage(error), 'err');
+  toast('Datos del cliente actualizados');
+  await renderCustomers();
+  openCustomer(b.dataset.saveCustomer);
+});
+
 $('#custTable').addEventListener('click', (e) => {
   const b = e.target.closest('[data-cust]');
   if (b) openCustomer(b.dataset.cust);
@@ -2224,6 +2254,30 @@ async function openCustomer(userId) {
           Alta: ${p.created_at ? fmtDate(p.created_at) : '—'}
         </p>
         ${addrs.length ? `<p class="small muted">Direcciones: ${addrs.map((a) => esc(`${a.line1 || ''} ${a.city || ''}`.trim())).join(' · ')}</p>` : ''}
+
+        <details style="margin-top:.6rem">
+          <summary class="small" style="cursor:pointer;color:var(--accent,#0b6bcb)">✎ Ingresar o corregir datos</summary>
+          <div style="margin-top:.6rem">
+            <div class="field"><label for="cu_name">Nombre completo</label>
+              <input id="cu_name" value="${esc(p.full_name || '')}" placeholder="Como aparece en el DUI"></div>
+            <div class="row" style="gap:.5rem">
+              <div class="field" style="flex:1"><label for="cu_phone">Teléfono</label>
+                <input id="cu_phone" value="${esc(p.phone || '')}" inputmode="numeric" placeholder="0000 0000"></div>
+              <div class="field" style="flex:1"><label for="cu_dui">DUI</label>
+                <input id="cu_dui" value="${esc(p.dui || '')}" placeholder="00000000-0"></div>
+            </div>
+            <div class="row" style="gap:.5rem">
+              <div class="field" style="flex:1"><label for="cu_nit">NIT</label>
+                <input id="cu_nit" value="${esc(p.nit || '')}" placeholder="0000-000000-000-0"></div>
+              <div class="field" style="flex:1"><label for="cu_nrc">NRC</label>
+                <input id="cu_nrc" value="${esc(p.nrc || '')}" placeholder="000000-0"></div>
+            </div>
+            <div class="field"><label for="cu_address">Dirección</label>
+              <input id="cu_address" value="${esc(p.address || '')}" placeholder="Calle, número, colonia, ciudad"></div>
+            <button class="btn sm primary" type="button" data-save-customer="${userId}">Guardar datos</button>
+            <p class="small muted" style="margin:.45rem 0 0">El NIT y el NRC son los que se usan para emitir factura (CCF).</p>
+          </div>
+        </details>
       </div>
 
       <div class="panel" style="margin-bottom:.8rem">
