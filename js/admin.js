@@ -1187,36 +1187,55 @@ function openActa(orderId, btn) {
     if (trazos < 8) return say('Falta la firma del cliente en el recuadro.');
 
     const save = document.getElementById('acSave');
+    const prevText = save.textContent;
     save.disabled = true; save.textContent = 'Guardando…';
+    const conTimeout = (p, ms, etiqueta) => Promise.race([
+      p,
+      new Promise((_, rej) => setTimeout(() => rej(new Error(etiqueta + ' tardó demasiado')), ms)),
+    ]);
 
     try {
       const uid = state.profile?.id || null;
       const stamp = Date.now();
       let photo_path = null, signature_path = null;
 
-      // firma
-      const blob = await new Promise((r) => pad.toBlob(r, 'image/png'));
-      const sigPath = `${orderId}/firma-${stamp}.png`;
-      const upSig = await sb.storage.from('ts_entregas').upload(sigPath, blob, { contentType: 'image/png' });
-      if (upSig.error) throw upSig.error;
-      signature_path = sigPath;
+      // firma: si el canvas no responde, no bloqueamos la entrega
+      try {
+        const blob = await conTimeout(
+          new Promise((r) => pad.toBlob(r, 'image/png')), 4000, 'La firma');
+        if (blob) {
+          const sigPath = `${orderId}/firma-${stamp}.png`;
+          const upSig = await conTimeout(
+            sb.storage.from('ts_entregas').upload(sigPath, blob, { contentType: 'image/png' }),
+            15000, 'La subida de la firma');
+          if (upSig.error) throw upSig.error;
+          signature_path = sigPath;
+        }
+      } catch (eFirma) {
+        say('Aviso: se guardó la entrega sin firma (' + (eFirma.message || eFirma) + ')');
+      }
 
       // foto
       if (foto) {
         const ext = (foto.name.split('.').pop() || 'jpg').toLowerCase();
         const phPath = `${orderId}/foto-${stamp}.${ext}`;
-        const upPh = await sb.storage.from('ts_entregas').upload(phPath, foto, { contentType: foto.type || 'image/jpeg' });
+        const upPh = await conTimeout(
+          sb.storage.from('ts_entregas').upload(phPath, foto, { contentType: foto.type || 'image/jpeg' }),
+          20000, 'La subida de la foto');
         if (upPh.error) throw upPh.error;
         photo_path = phPath;
       }
 
-      const { data: proof, error: insErr } = await sb.from('ts_delivery_proofs').insert({
-        order_id: orderId, courier_id: uid, received_by: nombre, doc_number: doc || null,
-        conformidad: ok, notes: notes || null, photo_path, signature_path,
-      }).select().single();
+      const { data: proof, error: insErr } = await conTimeout(
+        sb.from('ts_delivery_proofs').insert({
+          order_id: orderId, courier_id: uid, received_by: nombre, doc_number: doc || null,
+          conformidad: ok, notes: notes || null, photo_path, signature_path,
+        }).select().single(), 15000, 'El acta');
       if (insErr) throw insErr;
 
-      const { error } = await sb.rpc('ts_courier_set_status', { p_order_id: orderId, p_status: 'entregado' });
+      const { error } = await conTimeout(
+        sb.rpc('ts_courier_set_status', { p_order_id: orderId, p_status: 'entregado' }),
+        15000, 'El cambio de estado');
       if (error) {
         // no dejamos actas de entregas que no se completaron
         await sb.from('ts_delivery_proofs').delete().eq('id', proof.id);
@@ -1225,10 +1244,15 @@ function openActa(orderId, btn) {
 
       toast('Entrega registrada con acta');
       document.querySelector('[data-close-drawer]')?.click();
-      renderDeliveries();
+      if (typeof renderDeliveries === 'function') { try { await renderDeliveries(); } catch {} }
+      // volver siempre a la lista del transportista
+      document.querySelector('[data-nav="reparto"]')?.click();
+      location.hash = '#reparto';
     } catch (err) {
       say('No se pudo guardar: ' + (err.message || err));
-      save.disabled = false; save.textContent = 'Confirmar entrega';
+    } finally {
+      save.disabled = false;
+      save.textContent = prevText || 'Confirmar entrega';
     }
   };
 }
