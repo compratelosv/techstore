@@ -4312,6 +4312,20 @@ function openProductEditor(p = null) {
             <input id="fLow" type="number" step="1" min="0" value="${p ? p.low_stock : 3}">
           </div>
         </div>
+        <div class="row" style="gap:.6rem">
+          <div class="field" style="flex:1">
+            <label for="fWarrantyDays">Garantía del proveedor (días)</label>
+            <input id="fWarrantyDays" type="number" step="1" min="0" value="${p?.warranty_days ?? 180}" placeholder="180">
+          </div>
+          <div class="field" style="flex:1">
+            <label for="fWarrantyFrom">Fecha de compra al proveedor</label>
+            <input id="fWarrantyFrom" type="date" value="${p?.warranty_from || ''}">
+          </div>
+        </div>
+        <p class="small muted" style="margin:-.2rem 0 .7rem">
+          La garantía corre desde la compra al proveedor. Si el plazo vence, el cliente no recibe garantía:
+          es tu riesgo si igual lo vendés.
+        </p>
         <div class="field">
           <label for="fBarcode">Código de barras (EAN-13)</label>
           <div class="row">
@@ -4549,6 +4563,8 @@ function openProductEditor(p = null) {
       price: Number(document.getElementById('fPrice').value),
       stock: Number(document.getElementById('fStock').value || 0),
       low_stock: Number(document.getElementById('fLow').value || 0),
+      warranty_days: Number(document.getElementById('fWarrantyDays')?.value || 180),
+      warranty_from: document.getElementById('fWarrantyFrom')?.value || null,
       barcode: document.getElementById('fBarcode').value.trim() || newBarcode(),
       description: document.getElementById('fDesc').value.trim() || null,
       image_url: photos[0] || null,
