@@ -60,6 +60,14 @@ async function renderPay() {
   const t = transfer || {};
   const hayTransf = !!(t.activo && t.cuenta);
 
+  // ¿es administrador? solo él ve el atajo de pago simulado
+  let esAdmin = false;
+  const { data: { user: me } } = await sb.auth.getUser();
+  if (me) {
+    const { data: perfil } = await sb.from('ts_profiles').select('role').eq('id', me.id).maybeSingle();
+    esAdmin = perfil?.role === 'admin';
+  }
+
   view.innerHTML = `
     <h1 style="margin-bottom:.3rem">Completar pago</h1>
     <p class="muted" style="margin-top:0">Pedido creado. Elegí cómo querés pagar.</p>
@@ -84,7 +92,9 @@ async function renderPay() {
       <p class="small muted">${MODO_PAGO === 'simulado'
         ? 'Entorno de <b>pago simulado</b>: no se cobra dinero real ni se piden datos de tarjeta.'
         : 'Te llevamos a la pasarela segura de Wompi para pagar con tarjeta.'}</p>
-      <button class="btn primary block" id="payBtn">Pagar ${money(order.total)}</button>`;
+      <button class="btn primary block" id="payBtn">Pagar ${money(order.total)}</button>
+      ${esAdmin ? `<button class="btn ghost block" id="simBtn" style="margin-top:.5rem">⚡ Confirmar pago simulado (solo admin)</button>
+      <p class="small muted" style="margin:.4rem 0 0">Salta la pasarela y marca el pedido como pagado. Úsalo solo en pruebas.</p>` : ''}`;
     document.getElementById('payBtn').onclick = async (e) => {
       const btn = e.currentTarget;
       btn.disabled = true; btn.textContent = 'Confirmando…';
@@ -92,6 +102,16 @@ async function renderPay() {
       if (r.tipo === 'error') { toast(r.mensaje, 'err'); btn.disabled = false; btn.textContent = `Pagar ${money(order.total)}`; return; }
       if (r.tipo === 'redirigir') { location.href = r.url; return; }
       order = r.order; renderSuccess();
+    };
+    const sim = document.getElementById('simBtn');
+    if (sim) sim.onclick = async () => {
+      sim.disabled = true; sim.textContent = 'Confirmando…';
+      const { error } = await sb.rpc('ts_confirm_payment', {
+        p_order_id: order.id, p_provider: 'simulado', p_reference: `SIM-${order.code}-${Date.now()}`,
+      });
+      if (error) { toast(errMessage(error), 'err'); sim.disabled = false; sim.textContent = '⚡ Confirmar pago simulado (solo admin)'; return; }
+      toast('Pago simulado confirmado · pedido pagado');
+      renderSuccess();
     };
   };
 
