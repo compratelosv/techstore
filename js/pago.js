@@ -3,6 +3,7 @@
  * ts_confirm_payment, que es la única que descuenta stock.
  */
 import { sb, money, esc, toast, mountHeader, requireLogin, errMessage, STATUS_LABEL } from './core.js?v=3b15e8e6';
+import { cobrarPedido, MODO_PAGO } from './pagos-provider.js?v=8a65acb6';
 
 const view = document.getElementById('pagoView');
 const orderId = new URLSearchParams(location.search).get('order');
@@ -62,10 +63,11 @@ function renderPay() {
     <div class="panel" style="margin-top:1rem">
       <h3>Pago con tarjeta</h3>
       <p class="small muted">
-        Este entorno usa <b>pago simulado</b>: no se cobra dinero real y no se piden datos de tarjeta.
-        En producción esta pantalla se sustituye por la pasarela (Wompi) y la confirmación llega por webhook.
+        ${MODO_PAGO === 'simulado'
+          ? 'Este entorno usa <b>pago simulado</b>: no se cobra dinero real y no se piden datos de tarjeta. La confirmación siempre pasa por la misma función del servidor.'
+          : 'Te llevaremos a la pasarela de pago segura para completar la compra.'}
       </p>
-      <button class="btn primary block" id="payBtn">Pagar ${money(order.total)} (simulado)</button>
+      <button class="btn primary block" id="payBtn">Pagar ${money(order.total)}${MODO_PAGO === 'simulado' ? ' (simulado)' : ''}</button>
       <a class="btn ghost block" href="cuenta.html" style="margin-top:.5rem">Pagar más tarde</a>
     </div>`;
 
@@ -73,18 +75,15 @@ function renderPay() {
     const btn = e.currentTarget;
     btn.disabled = true;
     btn.textContent = 'Confirmando…';
-    const { data, error } = await sb.rpc('ts_confirm_payment', {
-      p_order_id: order.id,
-      p_provider: 'simulado',
-      p_reference: `SIM-${Date.now()}`,
-    });
-    if (error) {
-      toast(errMessage(error), 'err');
+    const r = await cobrarPedido(sb, order);
+    if (r.tipo === 'error') {
+      toast(r.mensaje, 'err');
       btn.disabled = false;
-      btn.textContent = `Pagar ${money(order.total)} (simulado)`;
+      btn.textContent = `Pagar ${money(order.total)}`;
       return;
     }
-    order = data;
+    if (r.tipo === 'redirigir') { location.href = r.url; return; }
+    order = r.order;
     renderSuccess();
   };
 }
