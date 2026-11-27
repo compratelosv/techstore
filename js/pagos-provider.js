@@ -9,7 +9,7 @@
  * Ningún proveedor escribe el estado por su cuenta.
  */
 
-export const MODO_PAGO = 'wompi'; // 'simulado' | 'wompi'
+export const MODO_PAGO = 'simulado'; // 'simulado' | 'wompi'
 
 /* ---------- contrato público ---------- */
 

@@ -3,7 +3,7 @@
  * ts_confirm_payment, que es la única que descuenta stock.
  */
 import { sb, money, esc, toast, mountHeader, requireLogin, errMessage, STATUS_LABEL } from './core.js?v=828d81de';
-import { cobrarPedido, MODO_PAGO } from './pagos-provider.js?v=bd1b1326';
+import { cobrarPedido, MODO_PAGO } from './pagos-provider.js?v=8a65acb6';
 
 const view = document.getElementById('pagoView');
 const orderId = new URLSearchParams(location.search).get('order');
