@@ -2134,7 +2134,59 @@ function drawCustomers() {
   $('#custEmpty').hidden = rows.length > 0;
 }
 
-$('#custSearch').addEventListener('input', drawCustomers);
+/* -------- sugerencias predictivas del buscador de clientes -------- */
+function drawCustSuggest() {
+  const box = document.getElementById('custSuggest');
+  const inp = document.getElementById('custSearch');
+  if (!box || !inp) return;
+  const term = (inp.value || '').toLowerCase().trim();
+  inp.setAttribute('aria-expanded', term.length >= 2 ? 'true' : 'false');
+  if (term.length < 2) { box.hidden = true; box.innerHTML = ''; return; }
+
+  const hits = (customerPicks || [])
+    .filter((c) =>
+      (c.name || '').toLowerCase().includes(term) ||
+      (c.email || '').toLowerCase().includes(term) ||
+      String(c.phone || '').includes(term))
+    .slice(0, 6);
+
+  if (!hits.length) { box.hidden = true; box.innerHTML = ''; return; }
+
+  box.innerHTML = hits.map((c) => {
+    const sub = [c.phone, c.email].filter(Boolean).join(' · ');
+    return `<button type="button" role="option" data-pick="${esc(c.name || '')}"
+      style="display:block;width:100%;text-align:left;padding:.55rem .65rem;background:transparent;border:0;border-bottom:1px solid var(--line,#eee);cursor:pointer;font:inherit">
+      <b style="display:block;font-size:.9rem">${esc(c.name || 'Cliente')}</b>
+      ${sub ? `<span style="display:block;font-size:.78rem;opacity:.65">${esc(sub)}</span>` : ''}
+    </button>`;
+  }).join('');
+  box.hidden = false;
+}
+
+$('#custSearch').addEventListener('input', () => { drawCustomers(); drawCustSuggest(); });
+$('#custSearch').addEventListener('focus', drawCustSuggest);
+$('#custSearch').addEventListener('keydown', (e) => {
+  const box = document.getElementById('custSuggest');
+  if (e.key === 'Escape') { box.hidden = true; return; }
+  if (e.key === 'Enter') {
+    const first = box.querySelector('[data-pick]');
+    if (first && !box.hidden) { e.preventDefault(); first.click(); }
+  }
+});
+document.getElementById('custSuggest').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-pick]');
+  if (!b) return;
+  const inp = document.getElementById('custSearch');
+  inp.value = b.dataset.pick;
+  inp.setAttribute('aria-expanded', 'false');
+  document.getElementById('custSuggest').hidden = true;
+  drawCustomers();
+});
+document.addEventListener('click', (e) => {
+  const box = document.getElementById('custSuggest');
+  if (!box) return;
+  if (!e.target.closest('#custSearch') && !e.target.closest('#custSuggest')) box.hidden = true;
+});
 $('#btnRefreshCust').addEventListener('click', renderCustomers);
 
 $('#custTable').addEventListener('click', (e) => {

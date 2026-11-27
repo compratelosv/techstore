@@ -576,7 +576,12 @@
       <div class="kpis" id="custKpis"></div>
       <div class="panel">
         <div class="row wrap" style="justify-content:space-between;margin-bottom:.8rem;gap:.5rem">
-          <input id="custSearch" placeholder="Buscar por nombre, correo o teléfono…" style="max-width:320px">
+          <div style="position:relative;flex:1;max-width:320px;min-width:170px">
+            <input id="custSearch" placeholder="Buscar por nombre, correo o teléfono…"
+              style="width:100%" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="custSuggest" aria-expanded="false">
+            <div id="custSuggest" role="listbox" hidden
+              style="position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--panel,#fff);border:1px solid var(--line,#ddd);border-radius:8px;box-shadow:0 10px 28px rgba(0,0,0,.14);z-index:60;max-height:264px;overflow:auto"></div>
+          </div>
           <button class="btn sm" id="btnRefreshCust">Actualizar</button>
         </div>
         <div style="overflow-x:auto">
@@ -1075,6 +1080,6 @@
 <script src="vendor/zxing-library.min.js"></script>
 <script src="vendor/zxing-browser.min.js"></script>
 <script src="vendor/jsbarcode.min.js"></script>
-<script type="module" src="js/admin.js?v=84c87abb"></script>
+<script type="module" src="js/admin.js?v=e55bd9e8"></script>
 </body>
 </html>
