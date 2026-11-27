@@ -180,9 +180,9 @@ promoInput.addEventListener('input', () => {
     const wrap = document.getElementById('promoPickWrap');
     if (!sel || !wrap) return;
     sel.innerHTML = '<option value="">— elegí un cupón —</option>' + opts.map((o) => {
-      const val = o.discount_type === 'percent' ? `${o.discount_value}%` : money(o.discount_value);
-      const vence = o.ends_at ? ` · vence ${new Date(o.ends_at).toLocaleDateString('es-SV')}` : '';
-      return `<option value="${esc(o.code)}">${esc(o.code)} · ${val}${vence}</option>`;
+      const desc = o.discount ? ` (−${money(o.discount)})` : '';
+      const nom = o.name ? ` · ${o.name}` : '';
+      return `<option value="${esc(o.code)}">${esc(o.code)}${esc(nom)} · ${esc(o.message || '')}${desc}</option>`;
     }).join('');
     wrap.hidden = false;
     sel.addEventListener('change', () => {
