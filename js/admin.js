@@ -730,8 +730,10 @@ async function openOrder(id) {
               <td>${esc(i.name)}</td>
               <td class="num">×${i.qty}</td>
               <td class="num">${money(i.line_total)}</td>
-              <td class="num"><button class="btn sm ghost" title="Reportar daño antes de entregar"
-                data-damage="${i.id}" data-sku="${esc(i.sku)}" data-name="${esc(i.name)}">⚠</button></td>
+              <td class="num">${['entregado', 'reembolsado', 'cancelado'].includes(order.status)
+                ? '<span class="small muted" title="El pedido ya se cerró: no se puede reportar una incidencia">—</span>'
+                : `<button class="btn sm ghost" title="Reportar daño antes de entregar"
+                data-damage="${i.id}" data-sku="${esc(i.sku)}" data-name="${esc(i.name)}">⚠</button>`}</td>
             </tr>`).join('')}
           </tbody>
         </table>
@@ -902,6 +904,11 @@ function renderKanban() {
 $('#dBody').addEventListener('click', (e) => {
   const b = e.target.closest('[data-damage]');
   if (!b) return;
+  const oid = document.getElementById('dBody')?.dataset.orderId;
+  const ord = (state.orders || []).find((o) => o.id === oid);
+  if (ord && ['entregado', 'reembolsado', 'cancelado'].includes(ord.status)) {
+    return toast('El pedido ya fue cerrado: no se puede reportar una incidencia', 'err');
+  }
   e.preventDefault();
   openDamageForm(b.dataset.damage, { sku: b.dataset.sku, name: b.dataset.name });
 });
